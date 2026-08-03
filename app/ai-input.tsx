@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -86,7 +87,10 @@ export default function AiInputScreen() {
             accessibilityRole="button"
             accessibilityLabel="Parse tasks"
             onPress={runParse}
-            style={styles.parseBtn}
+            style={({ pressed }) => [
+              styles.parseBtn,
+              pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
+            ]}
           >
             <Ionicons name="play" size={20} color={colors.white} />
           </Pressable>
@@ -209,6 +213,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({
+      web: { cursor: 'pointer' } as object,
+      default: {},
+    }),
   },
   parsedBlock: {
     gap: 12,

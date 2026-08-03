@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { usePathname, useRouter } from 'expo-router';
+import { Link, usePathname } from 'expo-router';
 import { Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -7,7 +7,6 @@ import { colors, radii } from '@/constants/theme';
 
 export function FloatingTabBar() {
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const pathname = usePathname();
 
   const onHome =
@@ -15,9 +14,11 @@ export function FloatingTabBar() {
     pathname === '/(tabs)' ||
     pathname === '/(tabs)/' ||
     pathname.endsWith('/(tabs)/index') ||
-    pathname.endsWith('/index');
-  const onAnalytics =
-    pathname.includes('analytics');
+    (!pathname.includes('analytics') &&
+      !pathname.includes('coach') &&
+      !pathname.includes('ai-input') &&
+      !pathname.includes('onboarding'));
+  const onAnalytics = pathname.includes('analytics');
   const onCoach = pathname.includes('coach');
 
   return (
@@ -28,63 +29,68 @@ export function FloatingTabBar() {
       ]}
     >
       <View style={styles.bar}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={onHome ? { selected: true } : {}}
-          onPress={() => router.replace('/(tabs)')}
-          style={styles.tab}
-        >
-          <Ionicons
-            name="grid-outline"
-            size={22}
-            color={onHome ? colors.ink : colors.inkMuted}
-          />
-          {onHome ? <View style={styles.dot} /> : <View style={styles.dotSpacer} />}
-        </Pressable>
+        <Link href="/(tabs)" asChild>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityState={onHome ? { selected: true } : {}}
+            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+          >
+            <Ionicons
+              name="grid-outline"
+              size={22}
+              color={onHome ? colors.ink : colors.inkMuted}
+            />
+            {onHome ? <View style={styles.dot} /> : <View style={styles.dotSpacer} />}
+          </Pressable>
+        </Link>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Add with AI"
-          onPress={() => router.push('/ai-input')}
-          style={({ pressed }) => [
-            styles.fab,
-            pressed && { opacity: 0.88, transform: [{ scale: 0.96 }] },
-          ]}
-        >
-          <Ionicons name="add" size={30} color={colors.white} />
-        </Pressable>
+        <Link href="/ai-input" asChild>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel="Add with AI"
+            style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+          >
+            <Ionicons name="add" size={30} color={colors.white} />
+          </Pressable>
+        </Link>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={onAnalytics ? { selected: true } : {}}
-          onPress={() => router.replace('/(tabs)/analytics')}
-          style={styles.tab}
-        >
-          <Ionicons
-            name="bar-chart-outline"
-            size={22}
-            color={onAnalytics ? colors.ink : colors.inkMuted}
-          />
-          {onAnalytics ? (
-            <View style={styles.dot} />
-          ) : (
-            <View style={styles.dotSpacer} />
-          )}
-        </Pressable>
+        <Link href="/(tabs)/analytics" asChild>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityState={onAnalytics ? { selected: true } : {}}
+            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+          >
+            <Ionicons
+              name="bar-chart-outline"
+              size={22}
+              color={onAnalytics ? colors.ink : colors.inkMuted}
+            />
+            {onAnalytics ? (
+              <View style={styles.dot} />
+            ) : (
+              <View style={styles.dotSpacer} />
+            )}
+          </Pressable>
+        </Link>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={onCoach ? { selected: true } : {}}
-          onPress={() => router.replace('/(tabs)/coach')}
-          style={styles.tab}
-        >
-          <Ionicons
-            name="flash-outline"
-            size={22}
-            color={onCoach ? colors.ink : colors.inkMuted}
-          />
-          {onCoach ? <View style={styles.dot} /> : <View style={styles.dotSpacer} />}
-        </Pressable>
+        <Link href="/(tabs)/coach" asChild>
+          <Pressable
+            accessibilityRole="link"
+            accessibilityState={onCoach ? { selected: true } : {}}
+            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+          >
+            <Ionicons
+              name="flash-outline"
+              size={22}
+              color={onCoach ? colors.ink : colors.inkMuted}
+            />
+            {onCoach ? (
+              <View style={styles.dot} />
+            ) : (
+              <View style={styles.dotSpacer} />
+            )}
+          </Pressable>
+        </Link>
       </View>
     </View>
   );
@@ -122,6 +128,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
+    ...Platform.select({
+      web: { cursor: 'pointer' } as object,
+      default: {},
+    }),
   },
   fab: {
     width: 56,
@@ -130,6 +140,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({
+      web: { cursor: 'pointer' } as object,
+      default: {},
+    }),
+  },
+  pressed: {
+    opacity: 0.85,
+    transform: [{ scale: 0.96 }],
   },
   dot: {
     width: 5,
