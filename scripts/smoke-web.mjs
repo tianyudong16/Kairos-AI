@@ -49,14 +49,24 @@ async function main() {
 
   await page.goto(`${base}/coach`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(700);
-  await page.getByText('Add a 20m reset in the afternoon').click();
+  await page.getByText('Add a mid-day reset').click();
   await page.waitForTimeout(700);
-  await check(results, 'coach break', (await page.getByText(/recovery break/i).count()) > 0);
+  await check(results, 'coach break', (await page.getByText(/recovery break|quick reset/i).count()) > 0);
   await check(results, 'coach changes', (await page.getByText('Latest changes').count()) > 0);
 
-  await page.getByText('Break a long block into two sessions').click();
+  await page.getByText(/Break .+ into two|two sessions/i).first().click();
   await page.waitForTimeout(700);
   await check(results, 'coach split', (await page.getByText(/Split/i).count()) > 0);
+
+  await page.getByPlaceholder(/review my day/i).fill('review my day');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await page.waitForTimeout(500);
+  await check(results, 'coach review', (await page.getByText(/Here’s my read|Focus candidates/i).count()) > 0);
+
+  await page.getByPlaceholder(/review my day/i).fill('batch admin tasks');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await page.waitForTimeout(500);
+  await check(results, 'coach batch', (await page.getByText(/Batched|Admin batched/i).count()) > 0);
 
   await check(results, 'nav today', (await page.getByRole('button', { name: 'Today' }).count()) > 0);
   await check(

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,53 +13,20 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
+import { SuggestedAction } from '@/lib/coach';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
 
-const actionCards = [
-  {
-    title: 'Protect peak',
-    prompt: 'Protect peak window',
-    detail: 'Put deep work first in your peak hours',
-    color: colors.work,
-    soft: colors.workSoft,
-  },
-  {
-    title: 'Move overflow',
-    prompt: 'Move low priority to tomorrow',
-    detail: 'Shift leftover tasks past bedtime',
-    color: colors.energy,
-    soft: colors.lifeSoft,
-  },
-  {
-    title: 'Insert break',
-    prompt: 'Insert recovery break',
-    detail: 'Add a 20m reset in the afternoon',
-    color: colors.health,
-    soft: colors.healthSoft,
-  },
-  {
-    title: 'Split longest',
-    prompt: 'Split longest task',
-    detail: 'Break a long block into two sessions',
-    color: colors.study,
-    soft: colors.studySoft,
-  },
-  {
-    title: 'Clear evening',
-    prompt: 'Clear evening after 5',
-    detail: 'Keep nights lighter',
-    color: colors.calendar,
-    soft: colors.calendarSoft,
-  },
-  {
-    title: 'Boost focus',
-    prompt: 'Boost priority of focus task',
-    detail: 'Raise a key task to HIGH',
-    color: colors.priorityHigh,
-    soft: colors.priorityHighSoft,
-  },
-];
+const colorMap: Record<SuggestedAction['colorKey'], { color: string; soft: string }> = {
+  work: { color: colors.work, soft: colors.workSoft },
+  energy: { color: colors.energy, soft: colors.lifeSoft },
+  health: { color: colors.health, soft: colors.healthSoft },
+  study: { color: colors.study, soft: colors.studySoft },
+  calendar: { color: colors.calendar, soft: colors.calendarSoft },
+  priorityHigh: { color: colors.priorityHigh, soft: colors.priorityHighSoft },
+  coach: { color: colors.coach, soft: colors.coachSoft },
+  life: { color: colors.life, soft: colors.lifeSoft },
+};
 
 export default function CoachScreen() {
   const router = useRouter();
@@ -71,8 +38,14 @@ export default function CoachScreen() {
     sleep,
     peakWindowLabel,
     tasksForSelectedDate,
+    dayAnalysis,
   } = useApp();
   const [draft, setDraft] = useState('');
+
+  const actionCards = useMemo(
+    () => dayAnalysis.suggestions,
+    [dayAnalysis.suggestions]
+  );
 
   const submit = (text?: string) => {
     const value = (text ?? draft).trim();
@@ -93,7 +66,7 @@ export default function CoachScreen() {
           <Text style={styles.title}>AI Coach</Text>
         </View>
         <Text style={styles.subtitle}>
-          Tap an action — I’ll change your schedule and show what moved.
+          I read your day, then change it — tap a contextual action or ask in plain language.
         </Text>
         <View style={styles.metaRow}>
           <View style={[styles.metaChip, { backgroundColor: colors.todaySoft }]}>
@@ -110,23 +83,52 @@ export default function CoachScreen() {
             </Text>
           </View>
         </View>
+        <Text style={styles.summaryLine}>{dayAnalysis.summaryLine}</Text>
       </View>
 
+      {dayAnalysis.insights.some((i) => i.severity === 'warn') ? (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.insightRow}
+        >
+          {dayAnalysis.insights
+            .filter((i) => i.severity === 'warn')
+            .map((insight) => (
+              <View key={insight.id} style={styles.insightChip}>
+                <Ionicons name="alert-circle" size={14} color={colors.energy} />
+                <Text style={styles.insightText} numberOfLines={2}>
+                  {insight.text}
+                </Text>
+              </View>
+            ))}
+        </ScrollView>
+      ) : null}
+
+      <Text style={styles.actionsLabel}>Suggested for today</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.actionRow}
       >
-        {actionCards.map((action) => (
-          <Pressable
-            key={action.title}
-            onPress={() => submit(action.prompt)}
-            style={[styles.actionCard, { backgroundColor: action.soft, borderColor: action.color }]}
-          >
-            <Text style={[styles.actionTitle, { color: action.color }]}>{action.title}</Text>
-            <Text style={styles.actionDetail}>{action.detail}</Text>
-          </Pressable>
-        ))}
+        {actionCards.map((action) => {
+          const tone = colorMap[action.colorKey];
+          return (
+            <Pressable
+              key={action.id}
+              onPress={() => submit(action.prompt)}
+              style={[
+                styles.actionCard,
+                { backgroundColor: tone.soft, borderColor: tone.color },
+              ]}
+            >
+              <Text style={[styles.actionTitle, { color: tone.color }]}>
+                {action.title}
+              </Text>
+              <Text style={styles.actionDetail}>{action.detail}</Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       {lastCoachChanges.length > 0 ? (
@@ -189,7 +191,7 @@ export default function CoachScreen() {
         <TextInput
           value={draft}
           onChangeText={setDraft}
-          placeholder="Or type: set bedtime 11pm, add 45m gym…"
+          placeholder='Try “review my day” or “add 45m gym at 5pm”'
           placeholderTextColor={colors.inkMuted}
           style={styles.input}
           onSubmitEditing={() => submit()}
@@ -222,6 +224,39 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   metaText: { fontFamily: fonts.semibold, fontSize: 11, color: colors.ink },
+  summaryLine: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.inkSoft,
+    marginTop: 2,
+  },
+  insightRow: { gap: 8, paddingBottom: 8 },
+  insightChip: {
+    maxWidth: 260,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.alert,
+    backgroundColor: colors.alertSoft,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  insightText: {
+    flex: 1,
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.ink,
+    lineHeight: 16,
+  },
+  actionsLabel: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    color: colors.inkMuted,
+    marginBottom: 6,
+  },
   actionRow: { gap: 10, paddingBottom: 12 },
   actionCard: {
     width: 150,
