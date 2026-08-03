@@ -12,7 +12,7 @@ import { CategoryEditModal } from '@/components/ui/CategoryEditModal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
-import { normalizeTimeInput } from '@/lib/schedule';
+import { normalizeTimeInput, sleepDurationHours } from '@/lib/schedule';
 
 const wakeOptions = ['5:30', '6:30', '7:00', '7:30', '8:00', '9:00', '10:00'];
 const bedOptions = ['21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '0:00', '1:00'];
@@ -198,7 +198,8 @@ export default function SettingsScreen() {
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Current sleep window</Text>
         <Text style={styles.cardBody}>
-          Wake {sleep.wakeTime} · Bed {sleep.bedtime}
+          {sleepDurationHours(sleep)}h sleep · Bed {sleep.bedtime} → Wake{' '}
+          {sleep.wakeTime}
         </Text>
       </View>
 

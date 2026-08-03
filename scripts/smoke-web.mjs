@@ -68,6 +68,15 @@ async function main() {
   await page.waitForTimeout(500);
   await check(results, 'coach batch', (await page.getByText(/Batched|Admin batched/i).count()) > 0);
 
+  await page.getByPlaceholder(/review my day/i).fill('I only need 8h of sleep');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await page.waitForTimeout(500);
+  await check(
+    results,
+    'coach sleep need',
+    (await page.getByText(/Set sleep need to 8h|8h → 8h|Sleep need updated/i).count()) > 0
+  );
+
   await check(results, 'nav today', (await page.getByRole('button', { name: 'Today' }).count()) > 0);
   await check(
     results,

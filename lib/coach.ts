@@ -1,6 +1,7 @@
 import {
   addDays,
   addMinutesToTime,
+  applySleepNeedHours,
   Category,
   CategoryDef,
   Chronotype,
@@ -12,6 +13,7 @@ import {
   parseDuration,
   Priority,
   SleepSchedule,
+  sleepDurationHours,
   Task,
   timeToMinutes,
 } from '@/lib/schedule';
@@ -863,35 +865,121 @@ function addTask(ctx: CoachContext, raw: string, text: string): CoachResult {
   };
 }
 
+/** Parse “need 8h”, “only 8 hours of sleep”, “sleep 8h” — not clock times. */
+function parseSleepNeedHours(text: string): number | null {
+  const patterns = [
+    /(?:only\s+)?(?:need(?:s)?|want(?:s)?|require(?:s)?)\s+(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\b/,
+    /(?:sleep(?:\s*time)?|rest)\s+(?:for\s+)?(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\b/,
+    /(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\s+(?:of\s+)?(?:sleep|rest)\b/,
+    /(?:sleep(?:\s*time)?|sleeptime)\s+(?:to\s+)?(?:only\s+)?(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\b/,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (!match) continue;
+    const hours = parseFloat(match[1]);
+    if (!Number.isNaN(hours) && hours >= 4 && hours <= 12) return hours;
+  }
+  return null;
+}
+
 function updateSleep(ctx: CoachContext, text: string): CoachResult {
-  const next = { ...ctx.sleep };
+  const beforeHours = sleepDurationHours(ctx.sleep);
+  let next = { ...ctx.sleep };
+
+  // 1) Duration intent first — “I only need 8h sleep”
+  const needHours = parseSleepNeedHours(text);
+  if (needHours != null) {
+    const keepBed = /keep(?:ing)?\s+(?:my\s+)?bed|from\s+bedtime|bedtime\s+fixed/.test(text);
+    next = applySleepNeedHours(ctx.sleep, needHours, keepBed ? 'bed' : 'wake');
+    const hours = sleepDurationHours(next);
+    return {
+      reply: `Set sleep need to ${hours}h (was ${beforeHours}h). Keeping ${
+        keepBed ? 'bedtime' : 'wake'
+      } fixed → bed ${next.bedtime}, wake ${next.wakeTime}. Say “optimize my day” to re-pack around it.`,
+      changes: [
+        change(
+          'Sleep need updated',
+          `${beforeHours}h → ${hours}h · Bed ${next.bedtime} · Wake ${next.wakeTime}`
+        ),
+      ],
+      sleep: next,
+    };
+  }
+
+  // 2) Explicit clock times — ignore bare numbers that are hour-durations (8h)
   const bedMatch = text.match(
-    /(?:bed(?:time)?|sleep)\s*(?:at|=|:)?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i
+    /(?:bed(?:time)?|sleep(?:\s*at)?)\s*(?:at|=|:)?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)(?!\s*(?:h|hr|hrs|hours?)\b)/i
   );
   const wakeMatch = text.match(
-    /(?:wake|get up)\s*(?:at|=|:|up)?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i
+    /(?:wake|get up)\s*(?:at|=|:|up)?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)(?!\s*(?:h|hr|hrs|hours?)\b)/i
   );
+
+  let changed = false;
   if (bedMatch) {
     const n = normalizeTimeInput(bedMatch[1]);
-    if (n) next.bedtime = n;
-  } else if (/bed|sleep/.test(text)) {
-    if (/\b11\b/.test(text)) next.bedtime = '23:00';
-    if (/\b10\b/.test(text)) next.bedtime = '22:00';
-    if (/\b12\b|midnight/.test(text)) next.bedtime = '0:00';
+    if (n) {
+      next.bedtime = n;
+      changed = true;
+    }
+  } else if (/\bbed(time)?\b/.test(text) && !/\bsleep\b/.test(text)) {
+    // Only map 10/11/12 when user clearly said bedtime, not “need 8h sleep”
+    if (/\b11\b/.test(text)) {
+      next.bedtime = '23:00';
+      changed = true;
+    } else if (/\b10\b/.test(text)) {
+      next.bedtime = '22:00';
+      changed = true;
+    } else if (/\b12\b|midnight/.test(text)) {
+      next.bedtime = '0:00';
+      changed = true;
+    }
   }
+
   if (wakeMatch) {
     const n = normalizeTimeInput(wakeMatch[1]);
-    if (n) next.wakeTime = n;
-  } else if (/wake/.test(text)) {
-    if (/early|6/.test(text)) next.wakeTime = '6:00';
-    if (/\b7\b/.test(text)) next.wakeTime = '7:00';
-    if (/\b8\b/.test(text)) next.wakeTime = '8:00';
-    if (/\b9\b/.test(text)) next.wakeTime = '9:00';
+    if (n) {
+      next.wakeTime = n;
+      changed = true;
+    }
+  } else if (/\bwake\b|\bget up\b/.test(text)) {
+    if (/\bearly\b|\b5\b/.test(text)) {
+      next.wakeTime = '5:30';
+      changed = true;
+    } else if (/\b6\b/.test(text)) {
+      next.wakeTime = '6:00';
+      changed = true;
+    } else if (/\b7\b/.test(text)) {
+      next.wakeTime = '7:00';
+      changed = true;
+    } else if (/\b8\b/.test(text)) {
+      next.wakeTime = '8:00';
+      changed = true;
+    } else if (/\b9\b/.test(text)) {
+      next.wakeTime = '9:00';
+      changed = true;
+    } else if (/\b10\b/.test(text)) {
+      next.wakeTime = '10:00';
+      changed = true;
+    }
   }
+
+  if (!changed) {
+    return {
+      reply: `Your sleep is currently ${beforeHours}h (bed ${ctx.sleep.bedtime} → wake ${ctx.sleep.wakeTime}). Try “I only need 8h of sleep”, “set bedtime 11pm”, or “wake at 7”.`,
+      changes: [
+        change('Sleep unchanged', `Still ${beforeHours}h · ${ctx.sleep.bedtime}–${ctx.sleep.wakeTime}`),
+      ],
+    };
+  }
+
+  const hours = sleepDurationHours(next);
   return {
-    reply: `Updated sleep window → wake ${next.wakeTime} / bed ${next.bedtime}. Ask me to re-optimize today around it.`,
+    reply: `Updated sleep window → bed ${next.bedtime} / wake ${next.wakeTime} (${hours}h sleep). Say “optimize my day” to re-pack around it.`,
     changes: [
-      change('Sleep updated', `Wake ${next.wakeTime} · Bed ${next.bedtime}`),
+      change(
+        'Sleep updated',
+        `${hours}h · Bed ${next.bedtime} · Wake ${next.wakeTime}`
+      ),
     ],
     sleep: next,
   };
@@ -988,7 +1076,7 @@ function helpReply(ctx: CoachContext, analysis: DayAnalysis): CoachResult {
       '• “protect peak” · “move overflow” · “insert 15m break”',
       '• “split React Architecture” · “clear evening after 6”',
       '• “make Calculus high” · “delete Email Admin”',
-      '• “add 45m gym at 5pm” · “set bedtime 11pm”',
+      '• “add 45m gym at 5pm” · “I only need 8h of sleep” · “set bedtime 11pm”',
       '• “batch admin” · “compress gaps” · “health earlier”',
       `Right now: ${analysis.summaryLine}`,
     ].join('\n'),

@@ -16,6 +16,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SuggestedAction } from '@/lib/coach';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
+import { sleepDurationHours } from '@/lib/schedule';
 
 const colorMap: Record<SuggestedAction['colorKey'], { color: string; soft: string }> = {
   work: { color: colors.work, soft: colors.workSoft },
@@ -74,7 +75,7 @@ export default function CoachScreen() {
           </View>
           <View style={[styles.metaChip, { backgroundColor: colors.lifeSoft }]}>
             <Text style={styles.metaText}>
-              {sleep.wakeTime}–{sleep.bedtime}
+              {sleepDurationHours(sleep)}h · {sleep.bedtime}→{sleep.wakeTime}
             </Text>
           </View>
           <View style={[styles.metaChip, { backgroundColor: colors.coachSoft }]}>

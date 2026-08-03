@@ -45,6 +45,42 @@ export type SleepSchedule = {
   wakeTime: string;
 };
 
+/** Overnight-aware minutes from bedtime → wake. */
+export function sleepDurationMinutes(sleep: SleepSchedule) {
+  const wake = timeToMinutes(sleep.wakeTime);
+  let bed = timeToMinutes(sleep.bedtime);
+  if (bed > wake) bed -= 24 * 60; // e.g. 22:30 → next-day 7:00
+  return wake - bed;
+}
+
+export function sleepDurationHours(sleep: SleepSchedule) {
+  return Math.round((sleepDurationMinutes(sleep) / 60) * 10) / 10;
+}
+
+/**
+ * Set a target sleep need in hours.
+ * Default: keep wake fixed, move bedtime earlier/later.
+ * Pass anchor 'bed' to keep bedtime and move wake instead.
+ */
+export function applySleepNeedHours(
+  sleep: SleepSchedule,
+  hours: number,
+  anchor: 'wake' | 'bed' = 'wake'
+): SleepSchedule {
+  const clamped = Math.min(12, Math.max(4, hours));
+  const needMinutes = Math.round(clamped * 60);
+  if (anchor === 'bed') {
+    return {
+      bedtime: sleep.bedtime,
+      wakeTime: minutesToTime(timeToMinutes(sleep.bedtime) + needMinutes),
+    };
+  }
+  return {
+    wakeTime: sleep.wakeTime,
+    bedtime: minutesToTime(timeToMinutes(sleep.wakeTime) - needMinutes),
+  };
+}
+
 /** Mix a hex color toward white for soft backgrounds */
 export function softFromColor(hex: string, amount = 0.82): string {
   const cleaned = hex.replace('#', '');
@@ -173,14 +209,18 @@ export function chronotypeDefaults(chronotype: Chronotype): {
 } {
   switch (chronotype) {
     case 'early-bird':
+      // 8h sleep
       return { sleep: { bedtime: '21:30', wakeTime: '5:30' }, peakStart: '6:00' };
     case 'night-owl':
-      return { sleep: { bedtime: '1:00', wakeTime: '10:00' }, peakStart: '11:00' };
+      // 8h sleep (was 9h: 1:00–10:00)
+      return { sleep: { bedtime: '2:00', wakeTime: '10:00' }, peakStart: '11:00' };
     case 'mid-morning':
-      return { sleep: { bedtime: '23:30', wakeTime: '8:00' }, peakStart: '9:00' };
+      // 8h sleep (was 8.5h: 23:30–8:00)
+      return { sleep: { bedtime: '0:00', wakeTime: '8:00' }, peakStart: '9:00' };
     case 'morning':
     default:
-      return { sleep: { bedtime: '22:30', wakeTime: '7:00' }, peakStart: '9:00' };
+      // 8h sleep (was 8.5h: 22:30–7:00)
+      return { sleep: { bedtime: '23:00', wakeTime: '7:00' }, peakStart: '9:00' };
   }
 }
 
