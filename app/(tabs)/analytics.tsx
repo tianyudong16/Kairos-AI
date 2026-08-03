@@ -4,6 +4,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { CircadianChart } from '@/components/analytics/CircadianChart';
 import { FocusRing } from '@/components/analytics/FocusRing';
+import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
 import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts, radii } from '@/constants/theme';
@@ -19,7 +20,7 @@ export default function AnalyticsScreen() {
   const router = useRouter();
 
   return (
-    <AppShell withTabBarPadding>
+    <AppShell footer={<FloatingTabBar />}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}

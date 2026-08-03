@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, radii } from '@/constants/theme';
@@ -7,9 +7,14 @@ import { colors, radii } from '@/constants/theme';
 type Props = {
   children: ReactNode;
   withTabBarPadding?: boolean;
+  footer?: ReactNode;
 };
 
-export function AppShell({ children, withTabBarPadding = false }: Props) {
+export function AppShell({
+  children,
+  withTabBarPadding = false,
+  footer,
+}: Props) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isWide = width >= 820;
@@ -21,13 +26,16 @@ export function AppShell({ children, withTabBarPadding = false }: Props) {
         isWide && styles.phoneWide,
         {
           paddingTop: Math.max(insets.top, 12),
-          paddingBottom: withTabBarPadding
-            ? Math.max(insets.bottom, 12) + 88
-            : Math.max(insets.bottom, 16),
+          paddingBottom: footer
+            ? 0
+            : withTabBarPadding
+              ? Math.max(insets.bottom, 12) + 88
+              : Math.max(insets.bottom, 16),
         },
       ]}
     >
-      {children}
+      <View style={styles.body}>{children}</View>
+      {footer}
     </View>
   );
 
@@ -85,10 +93,17 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderWidth: 1,
     borderColor: colors.lineStrong,
-    shadowColor: '#1C1A17',
-    shadowOpacity: 0.16,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 16 },
+    ...Platform.select({
+      web: {
+        boxShadow: '0 16px 40px rgba(28, 26, 23, 0.16)',
+      },
+      default: {
+        shadowColor: '#1C1A17',
+        shadowOpacity: 0.16,
+        shadowRadius: 28,
+        shadowOffset: { width: 0, height: 16 },
+      },
+    }),
   },
   phone: {
     flex: 1,
@@ -97,5 +112,8 @@ const styles = StyleSheet.create({
   },
   phoneWide: {
     borderRadius: radii.xl,
+  },
+  body: {
+    flex: 1,
   },
 });

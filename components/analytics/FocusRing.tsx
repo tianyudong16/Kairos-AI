@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, G } from 'react-native-svg';
 
 import { colors, fonts } from '@/constants/theme';
 
@@ -12,7 +12,7 @@ export function FocusRing({ score = 87 }: { score?: number }) {
 
   return (
     <View style={styles.wrap}>
-      <Svg width={size} height={size}>
+      <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <Circle
           cx={size / 2}
           cy={size / 2}
@@ -21,19 +21,19 @@ export function FocusRing({ score = 87 }: { score?: number }) {
           strokeWidth={stroke}
           fill="none"
         />
-        <Circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={colors.ink}
-          strokeWidth={stroke}
-          fill="none"
-          strokeDasharray={`${circumference} ${circumference}`}
-          strokeDashoffset={offset}
-          strokeLinecap="round"
-          rotation="-90"
-          origin={`${size / 2}, ${size / 2}`}
-        />
+        <G transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={colors.ink}
+            strokeWidth={stroke}
+            fill="none"
+            strokeDasharray={`${circumference} ${circumference}`}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+          />
+        </G>
       </Svg>
       <View style={styles.center}>
         <Text style={styles.score}>{score}%</Text>

@@ -30,7 +30,7 @@ export default function AiInputScreen() {
   const router = useRouter();
   const { addParsedTasks } = useApp();
   const [prompt, setPrompt] = useState(sample);
-  const [parsed, setParsed] = useState<ParsedTask[] | null>(null);
+  const [parsed, setParsed] = useState<ParsedTask[] | null>(defaultParsed);
 
   const iconFor = useMemo(
     () =>

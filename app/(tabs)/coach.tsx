@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
+import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
 import { AppShell } from '@/components/ui/AppShell';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
@@ -20,8 +21,15 @@ export default function CoachScreen() {
   const { coachMessages, sendCoachMessage } = useApp();
   const [draft, setDraft] = useState('');
 
+  const submit = () => {
+    const text = draft.trim();
+    if (!text) return;
+    sendCoachMessage(text);
+    setDraft('');
+  };
+
   return (
-    <AppShell withTabBarPadding>
+    <AppShell footer={<FloatingTabBar />}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -75,15 +83,13 @@ export default function CoachScreen() {
             placeholder="Ask Kairos to reshape your day…"
             placeholderTextColor={colors.inkMuted}
             style={styles.input}
+            onSubmitEditing={submit}
+            returnKeyType="send"
           />
           <Pressable
             accessibilityRole="button"
-            onPress={() => {
-              if (!draft.trim()) return;
-              sendCoachMessage(draft.trim());
-              setDraft('');
-            }}
-            style={styles.send}
+            onPress={submit}
+            style={({ pressed }) => [styles.send, pressed && { opacity: 0.85 }]}
           >
             <Ionicons name="arrow-up" size={20} color={colors.white} />
           </Pressable>

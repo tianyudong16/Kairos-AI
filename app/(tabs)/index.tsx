@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ScheduleTimeline } from '@/components/dashboard/ScheduleTimeline';
+import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
 import { AppShell } from '@/components/ui/AppShell';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
@@ -11,7 +12,7 @@ export default function DashboardScreen() {
   const { tasks, chronotype } = useApp();
 
   return (
-    <AppShell withTabBarPadding>
+    <AppShell footer={<FloatingTabBar />}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
