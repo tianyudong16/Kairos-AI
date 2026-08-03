@@ -4,8 +4,6 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { CircadianChart } from '@/components/analytics/CircadianChart';
 import { FocusRing } from '@/components/analytics/FocusRing';
-import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
-import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { colors, fonts, radii } from '@/constants/theme';
 
@@ -20,50 +18,48 @@ export default function AnalyticsScreen() {
   const router = useRouter();
 
   return (
-    <AppShell footer={<FloatingTabBar />}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        <Animated.View entering={FadeInDown}>
-          <Text style={styles.brand}>Kairos AI</Text>
-          <Text style={styles.title}>Analytics</Text>
-          <Text style={styles.subtitle}>Insights from today’s rhythm</Text>
-        </Animated.View>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.content}
+    >
+      <Animated.View entering={FadeInDown}>
+        <Text style={styles.brand}>Kairos AI</Text>
+        <Text style={styles.title}>Analytics</Text>
+        <Text style={styles.subtitle}>Insights from today’s rhythm</Text>
+      </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(80)} style={styles.scoreCard}>
-          <View style={styles.scoreCopy}>
-            <Text style={styles.scoreLabel}>Focus Score</Text>
-            <Text style={styles.scoreValue}>87 / 100</Text>
-            <Text style={styles.scoreHint}>Above your weekly average</Text>
-          </View>
-          <FocusRing score={87} />
-        </Animated.View>
-
-        <Animated.View entering={FadeInDown.delay(140)}>
-          <CircadianChart />
-        </Animated.View>
-
-        <View style={styles.grid}>
-          {metrics.map((metric, index) => (
-            <Animated.View
-              key={metric.label}
-              entering={FadeInDown.delay(180 + index * 40)}
-              style={styles.metric}
-            >
-              <Text style={styles.metricLabel}>{metric.label}</Text>
-              <Text style={styles.metricValue}>{metric.value}</Text>
-            </Animated.View>
-          ))}
+      <Animated.View entering={FadeInDown.delay(80)} style={styles.scoreCard}>
+        <View style={styles.scoreCopy}>
+          <Text style={styles.scoreLabel}>Focus Score</Text>
+          <Text style={styles.scoreValue}>87 / 100</Text>
+          <Text style={styles.scoreHint}>Above your weekly average</Text>
         </View>
+        <FocusRing score={87} />
+      </Animated.View>
 
-        <PrimaryButton
-          label="View AI Coach →"
-          variant="secondary"
-          onPress={() => router.push('/(tabs)/coach')}
-        />
-      </ScrollView>
-    </AppShell>
+      <Animated.View entering={FadeInDown.delay(140)}>
+        <CircadianChart />
+      </Animated.View>
+
+      <View style={styles.grid}>
+        {metrics.map((metric, index) => (
+          <Animated.View
+            key={metric.label}
+            entering={FadeInDown.delay(180 + index * 40)}
+            style={styles.metric}
+          >
+            <Text style={styles.metricLabel}>{metric.label}</Text>
+            <Text style={styles.metricValue}>{metric.value}</Text>
+          </Animated.View>
+        ))}
+      </View>
+
+      <PrimaryButton
+        label="View AI Coach →"
+        variant="secondary"
+        onPress={() => router.push('/(tabs)/coach')}
+      />
+    </ScrollView>
   );
 }
 

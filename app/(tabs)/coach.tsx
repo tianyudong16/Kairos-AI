@@ -12,8 +12,6 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
-import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
-import { AppShell } from '@/components/ui/AppShell';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
 
@@ -29,73 +27,72 @@ export default function CoachScreen() {
   };
 
   return (
-    <AppShell footer={<FloatingTabBar />}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={styles.header}>
-          <Text style={styles.brand}>Kairos AI</Text>
-          <View style={styles.titleRow}>
-            <Ionicons name="flash" size={18} color={colors.energy} />
-            <Text style={styles.title}>AI Coach</Text>
-          </View>
-          <Text style={styles.subtitle}>Co-pilot for your day</Text>
+    <KeyboardAvoidingView
+      style={styles.flex}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <View style={styles.header}>
+        <Text style={styles.brand}>Kairos AI</Text>
+        <View style={styles.titleRow}>
+          <Ionicons name="flash" size={18} color={colors.energy} />
+          <Text style={styles.title}>AI Coach</Text>
         </View>
+        <Text style={styles.subtitle}>Co-pilot for your day</Text>
+      </View>
 
-        <ScrollView
-          style={styles.flex}
-          contentContainerStyle={styles.messages}
-          showsVerticalScrollIndicator={false}
-        >
-          {coachMessages.map((message, index) => (
-            <Animated.View
-              key={message.id}
-              entering={FadeInUp.delay(index * 70)}
+      <ScrollView
+        style={styles.flex}
+        contentContainerStyle={styles.messages}
+        showsVerticalScrollIndicator={false}
+      >
+        {coachMessages.map((message, index) => (
+          <Animated.View
+            key={message.id}
+            entering={FadeInUp.delay(index * 70)}
+            style={[
+              styles.bubble,
+              message.role === 'user' ? styles.userBubble : styles.aiBubble,
+            ]}
+          >
+            <Text
               style={[
-                styles.bubble,
-                message.role === 'user' ? styles.userBubble : styles.aiBubble,
+                styles.bubbleText,
+                message.role === 'user' && styles.userText,
               ]}
             >
-              <Text
-                style={[
-                  styles.bubbleText,
-                  message.role === 'user' && styles.userText,
-                ]}
-              >
-                {message.text}
-              </Text>
-            </Animated.View>
-          ))}
-
-          <Animated.View entering={FadeInDown.delay(220)} style={styles.alert}>
-            <Ionicons name="warning" size={18} color={colors.energy} />
-            <Text style={styles.alertText}>
-              Capacity alert: 3.5h overflow before sleep cutoff.
+              {message.text}
             </Text>
           </Animated.View>
-        </ScrollView>
+        ))}
 
-        <View style={styles.composer}>
-          <TextInput
-            value={draft}
-            onChangeText={setDraft}
-            placeholder="Ask Kairos to reshape your day…"
-            placeholderTextColor={colors.inkMuted}
-            style={styles.input}
-            onSubmitEditing={submit}
-            returnKeyType="send"
-          />
-          <Pressable
-            accessibilityRole="button"
-            onPress={submit}
-            style={({ pressed }) => [styles.send, pressed && { opacity: 0.85 }]}
-          >
-            <Ionicons name="arrow-up" size={20} color={colors.white} />
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
-    </AppShell>
+        <Animated.View entering={FadeInDown.delay(220)} style={styles.alert}>
+          <Ionicons name="warning" size={18} color={colors.energy} />
+          <Text style={styles.alertText}>
+            Capacity alert: 3.5h overflow before sleep cutoff.
+          </Text>
+        </Animated.View>
+      </ScrollView>
+
+      <View style={styles.composer}>
+        <TextInput
+          value={draft}
+          onChangeText={setDraft}
+          placeholder="Ask Kairos to reshape your day…"
+          placeholderTextColor={colors.inkMuted}
+          style={styles.input}
+          onSubmitEditing={submit}
+          returnKeyType="send"
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Send message"
+          onPress={submit}
+          style={({ pressed }) => [styles.send, pressed && { opacity: 0.85 }]}
+        >
+          <Ionicons name="arrow-up" size={20} color={colors.white} />
+        </Pressable>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -200,5 +197,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.coach,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Platform.select({
+      web: { cursor: 'pointer' } as object,
+      default: {},
+    }),
   },
 });

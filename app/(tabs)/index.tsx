@@ -3,8 +3,6 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ScheduleTimeline } from '@/components/dashboard/ScheduleTimeline';
-import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
-import { AppShell } from '@/components/ui/AppShell';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
 
@@ -12,49 +10,47 @@ export default function DashboardScreen() {
   const { tasks, chronotype } = useApp();
 
   return (
-    <AppShell footer={<FloatingTabBar />}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-      >
-        <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.brand}>Kairos AI</Text>
-            <Text style={styles.greeting}>Good morning</Text>
-            <Text style={styles.date}>Monday · Aug 3</Text>
-          </View>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={20} color={colors.inkSoft} />
-          </View>
-        </Animated.View>
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.content}
+    >
+      <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
+        <View style={styles.headerText}>
+          <Text style={styles.brand}>Kairos AI</Text>
+          <Text style={styles.greeting}>Good morning</Text>
+          <Text style={styles.date}>Monday · Aug 3</Text>
+        </View>
+        <View style={styles.avatar}>
+          <Ionicons name="person" size={20} color={colors.inkSoft} />
+        </View>
+      </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(80)} style={styles.energyCard}>
-          <View style={styles.energyTop}>
-            <View style={styles.energyLabelRow}>
-              <Ionicons name="flash" size={16} color={colors.energy} />
-              <Text style={styles.energyLabel}>Energy: Peak Focus</Text>
-            </View>
-            <Text style={styles.chrono}>
-              {chronotype === 'early-bird'
-                ? 'Early Bird'
-                : chronotype === 'night-owl'
-                  ? 'Night Owl'
-                  : chronotype === 'mid-morning'
-                    ? 'Mid-Morning'
-                    : 'Morning Person'}
-            </Text>
+      <Animated.View entering={FadeInDown.delay(80)} style={styles.energyCard}>
+        <View style={styles.energyTop}>
+          <View style={styles.energyLabelRow}>
+            <Ionicons name="flash" size={16} color={colors.energy} />
+            <Text style={styles.energyLabel}>Energy: Peak Focus</Text>
           </View>
-          <View style={styles.wave}>
-            {[0.35, 0.55, 0.9, 0.7, 0.45, 0.3, 0.2].map((h, i) => (
-              <View key={i} style={[styles.waveBar, { height: 18 + h * 28 }]} />
-            ))}
-          </View>
-        </Animated.View>
+          <Text style={styles.chrono}>
+            {chronotype === 'early-bird'
+              ? 'Early Bird'
+              : chronotype === 'night-owl'
+                ? 'Night Owl'
+                : chronotype === 'mid-morning'
+                  ? 'Mid-Morning'
+                  : 'Morning Person'}
+          </Text>
+        </View>
+        <View style={styles.wave}>
+          {[0.35, 0.55, 0.9, 0.7, 0.45, 0.3, 0.2].map((h, i) => (
+            <View key={i} style={[styles.waveBar, { height: 18 + h * 28 }]} />
+          ))}
+        </View>
+      </Animated.View>
 
-        <Text style={styles.sectionTitle}>Today’s schedule</Text>
-        <ScheduleTimeline tasks={tasks} />
-      </ScrollView>
-    </AppShell>
+      <Text style={styles.sectionTitle}>Today’s schedule</Text>
+      <ScheduleTimeline tasks={tasks} />
+    </ScrollView>
   );
 }
 

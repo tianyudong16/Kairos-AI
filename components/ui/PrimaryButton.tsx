@@ -1,13 +1,6 @@
-import { Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
+import { Platform, Pressable, StyleSheet, Text, ViewStyle } from 'react-native';
 
 import { colors, fonts, radii } from '@/constants/theme';
-
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 type Props = {
   label: string;
@@ -22,25 +15,14 @@ export function PrimaryButton({
   variant = 'primary',
   style,
 }: Props) {
-  const scale = useSharedValue(1);
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
   return (
-    <AnimatedPressable
+    <Pressable
       accessibilityRole="button"
       onPress={onPress}
-      onPressIn={() => {
-        scale.value = withSpring(0.97, { damping: 18, stiffness: 320 });
-      }}
-      onPressOut={() => {
-        scale.value = withSpring(1, { damping: 18, stiffness: 320 });
-      }}
-      style={[
+      style={({ pressed }) => [
         styles.base,
         variant === 'primary' ? styles.primary : styles.secondary,
-        animatedStyle,
+        pressed && styles.pressed,
         style,
       ]}
     >
@@ -52,7 +34,7 @@ export function PrimaryButton({
       >
         {label}
       </Text>
-    </AnimatedPressable>
+    </Pressable>
   );
 }
 
@@ -63,6 +45,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 22,
+    ...Platform.select({
+      web: { cursor: 'pointer' } as object,
+      default: {},
+    }),
   },
   primary: {
     backgroundColor: colors.black,
@@ -71,6 +57,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgElevated,
     borderWidth: 1.5,
     borderColor: colors.ink,
+  },
+  pressed: {
+    opacity: 0.9,
+    transform: [{ scale: 0.98 }],
   },
   label: {
     fontFamily: fonts.semibold,
