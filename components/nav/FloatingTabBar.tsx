@@ -1,96 +1,94 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Link, usePathname } from 'expo-router';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { usePathname, useRouter } from 'expo-router';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, radii } from '@/constants/theme';
+import { colors, fonts, radii } from '@/constants/theme';
+
+const items = [
+  { key: 'home', label: 'Home', icon: 'home-outline' as const, href: '/(tabs)' },
+  {
+    key: 'calendar',
+    label: 'Calendar',
+    icon: 'calendar-outline' as const,
+    href: '/(tabs)/calendar',
+  },
+  { key: 'add', label: 'Add', icon: 'add' as const, href: '/ai-input', fab: true },
+  {
+    key: 'analytics',
+    label: 'Insights',
+    icon: 'bar-chart-outline' as const,
+    href: '/(tabs)/analytics',
+  },
+  {
+    key: 'coach',
+    label: 'Coach',
+    icon: 'flash-outline' as const,
+    href: '/(tabs)/coach',
+  },
+];
 
 export function FloatingTabBar() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const pathname = usePathname();
 
-  const onHome =
-    pathname === '/' ||
-    pathname === '/(tabs)' ||
-    pathname === '/(tabs)/' ||
-    pathname.endsWith('/(tabs)/index') ||
-    (!pathname.includes('analytics') &&
-      !pathname.includes('coach') &&
-      !pathname.includes('ai-input') &&
-      !pathname.includes('onboarding'));
-  const onAnalytics = pathname.includes('analytics');
-  const onCoach = pathname.includes('coach');
+  const isActive = (key: string) => {
+    if (key === 'home') {
+      return (
+        pathname === '/' ||
+        pathname === '/(tabs)' ||
+        pathname.endsWith('/index') ||
+        (!pathname.includes('calendar') &&
+          !pathname.includes('analytics') &&
+          !pathname.includes('coach') &&
+          !pathname.includes('settings') &&
+          !pathname.includes('ai-input') &&
+          !pathname.includes('onboarding'))
+      );
+    }
+    return pathname.includes(key);
+  };
 
   return (
-    <View
-      style={[
-        styles.wrap,
-        { paddingBottom: Math.max(insets.bottom, 10), paddingTop: 8 },
-      ]}
-    >
+    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.bar}>
-        <Link href="/(tabs)" asChild>
-          <Pressable
-            accessibilityRole="link"
-            accessibilityState={onHome ? { selected: true } : {}}
-            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
-          >
-            <Ionicons
-              name="grid-outline"
-              size={22}
-              color={onHome ? colors.ink : colors.inkMuted}
-            />
-            {onHome ? <View style={styles.dot} /> : <View style={styles.dotSpacer} />}
-          </Pressable>
-        </Link>
+        {items.map((item) => {
+          if (item.fab) {
+            return (
+              <Pressable
+                key={item.key}
+                accessibilityRole="button"
+                accessibilityLabel="Add task"
+                onPress={() => router.push(item.href as any)}
+                style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
+              >
+                <Ionicons name="add" size={28} color={colors.white} />
+              </Pressable>
+            );
+          }
 
-        <Link href="/ai-input" asChild>
-          <Pressable
-            accessibilityRole="link"
-            accessibilityLabel="Add with AI"
-            style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
-          >
-            <Ionicons name="add" size={30} color={colors.white} />
-          </Pressable>
-        </Link>
-
-        <Link href="/(tabs)/analytics" asChild>
-          <Pressable
-            accessibilityRole="link"
-            accessibilityState={onAnalytics ? { selected: true } : {}}
-            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
-          >
-            <Ionicons
-              name="bar-chart-outline"
-              size={22}
-              color={onAnalytics ? colors.ink : colors.inkMuted}
-            />
-            {onAnalytics ? (
-              <View style={styles.dot} />
-            ) : (
-              <View style={styles.dotSpacer} />
-            )}
-          </Pressable>
-        </Link>
-
-        <Link href="/(tabs)/coach" asChild>
-          <Pressable
-            accessibilityRole="link"
-            accessibilityState={onCoach ? { selected: true } : {}}
-            style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
-          >
-            <Ionicons
-              name="flash-outline"
-              size={22}
-              color={onCoach ? colors.ink : colors.inkMuted}
-            />
-            {onCoach ? (
-              <View style={styles.dot} />
-            ) : (
-              <View style={styles.dotSpacer} />
-            )}
-          </Pressable>
-        </Link>
+          const active = isActive(item.key);
+          return (
+            <Pressable
+              key={item.key}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
+              accessibilityState={active ? { selected: true } : {}}
+              onPress={() => router.push(item.href as any)}
+              style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+            >
+              <Ionicons
+                name={item.icon}
+                size={22}
+                color={active ? colors.ink : colors.inkMuted}
+              />
+              <Text style={[styles.label, active && styles.labelActive]}>
+                {item.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -99,21 +97,22 @@ export function FloatingTabBar() {
 const styles = StyleSheet.create({
   wrap: {
     backgroundColor: colors.bg,
+    paddingTop: 8,
   },
   bar: {
+    minHeight: 72,
+    borderRadius: radii.xl,
     backgroundColor: colors.bgElevated,
-    borderRadius: radii.pill,
     borderWidth: 1,
     borderColor: colors.lineStrong,
-    minHeight: 68,
-    paddingHorizontal: 14,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: 2,
     ...Platform.select({
-      web: {
-        boxShadow: '0 8px 20px rgba(28, 26, 23, 0.08)',
-      },
+      web: { boxShadow: '0 8px 20px rgba(28, 26, 23, 0.08)' },
       default: {
         shadowColor: '#1C1A17',
         shadowOpacity: 0.08,
@@ -123,40 +122,53 @@ const styles = StyleSheet.create({
     }),
   },
   tab: {
-    width: 48,
-    height: 48,
+    flex: 1,
+    minWidth: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 2,
+    paddingVertical: 4,
     ...Platform.select({
       web: { cursor: 'pointer' } as object,
       default: {},
     }),
   },
   fab: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: colors.black,
     alignItems: 'center',
     justifyContent: 'center',
+    marginHorizontal: 4,
+    borderWidth: 3,
+    borderColor: colors.bg,
+    zIndex: 2,
     ...Platform.select({
-      web: { cursor: 'pointer' } as object,
-      default: {},
+      web: {
+        cursor: 'pointer',
+        boxShadow: '0 8px 18px rgba(18, 16, 14, 0.28)',
+      } as object,
+      default: {
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+      },
     }),
+  },
+  label: {
+    fontFamily: fonts.medium,
+    fontSize: 10,
+    color: colors.inkMuted,
+  },
+  labelActive: {
+    color: colors.ink,
+    fontFamily: fonts.semibold,
   },
   pressed: {
     opacity: 0.85,
     transform: [{ scale: 0.96 }],
-  },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: colors.ink,
-  },
-  dotSpacer: {
-    width: 5,
-    height: 5,
   },
 });

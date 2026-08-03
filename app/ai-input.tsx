@@ -10,28 +10,30 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import { AppShell } from '@/components/ui/AppShell';
 import { CategoryTag } from '@/components/ui/CategoryTag';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { ParsedTask, useApp } from '@/context/AppContext';
-import { categoryMeta, colors, fonts, radii } from '@/constants/theme';
+import { DraftTask, Priority, useApp } from '@/context/AppContext';
+import { Category, categoryMeta, colors, fonts, radii } from '@/constants/theme';
+import { formatDuration, parseDuration } from '@/lib/schedule';
 
-const sample =
-  'I need 2h to code React, 45min cardio before 5pm, and lunch at noon...';
-
-const defaultParsed: ParsedTask[] = [
-  { id: 'p1', title: 'React', duration: '2h', category: 'work' },
-  { id: 'p2', title: 'Cardio', duration: '45m', category: 'health' },
-  { id: 'p3', title: 'Lunch', duration: '12:30', category: 'life' },
-];
+type Mode = 'ai' | 'manual';
 
 export default function AiInputScreen() {
   const router = useRouter();
-  const { addParsedTasks } = useApp();
-  const [prompt, setPrompt] = useState(sample);
-  const [parsed, setParsed] = useState<ParsedTask[] | null>(defaultParsed);
+  const { addDraftTasks, selectedDate } = useApp();
+  const [mode, setMode] = useState<Mode>('ai');
+  const [prompt, setPrompt] = useState(
+    'I need 2h to code React, 45min cardio before 5pm, and lunch at noon...'
+  );
+  const [drafts, setDrafts] = useState<DraftTask[]>([]);
+
+  // manual form
+  const [title, setTitle] = useState('');
+  const [durationText, setDurationText] = useState('60');
+  const [category, setCategory] = useState<Category>('work');
+  const [priority, setPriority] = useState<Priority>('medium');
 
   const iconFor = useMemo(
     () =>
@@ -44,9 +46,79 @@ export default function AiInputScreen() {
     []
   );
 
-  const runParse = () => {
-    // Practical demo parser: keep fidelity to the wireframe result.
-    setParsed(defaultParsed);
+  const parsePrompt = () => {
+    const chunks = prompt
+      .split(/,| and /i)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    const next: DraftTask[] = chunks.map((chunk, index) => {
+      const durationMinutes = parseDuration(chunk);
+      const lower = chunk.toLowerCase();
+      const categoryGuess: Category = /cardio|run|gym|workout|walk/.test(lower)
+        ? 'health'
+        : /lunch|dinner|errand|break/.test(lower)
+          ? 'life'
+          : /study|exam|read|calculus/.test(lower)
+            ? 'study'
+            : 'work';
+      const titleGuess =
+        chunk
+          .replace(/i need|to|before.*|at noon|at \d+.*/gi, '')
+          .replace(/\d+\s*h|\d+\s*m/gi, '')
+          .replace(/code/i, 'Code')
+          .trim() || `Task ${index + 1}`;
+
+      const preferredStart = /noon/.test(lower)
+        ? '12:00'
+        : /before\s*5/.test(lower)
+          ? '16:00'
+          : undefined;
+
+      return {
+        id: `draft-${Date.now()}-${index}`,
+        title: titleGuess.slice(0, 40),
+        durationMinutes,
+        category: categoryGuess,
+        priority: categoryGuess === 'work' ? 'high' : 'medium',
+        preferredStart,
+      };
+    });
+
+    setDrafts(next.length ? next : drafts);
+  };
+
+  const addManual = () => {
+    if (!title.trim()) return;
+    const durationMinutes = Math.max(15, parseInt(durationText, 10) || 60);
+    setDrafts((prev) => [
+      ...prev,
+      {
+        id: `manual-${Date.now()}`,
+        title: title.trim(),
+        durationMinutes,
+        category,
+        priority,
+      },
+    ]);
+    setTitle('');
+  };
+
+  const moveDraft = (id: string, direction: 'up' | 'down') => {
+    setDrafts((prev) => {
+      const index = prev.findIndex((d) => d.id === id);
+      const target = direction === 'up' ? index - 1 : index + 1;
+      if (index < 0 || target < 0 || target >= prev.length) return prev;
+      const copy = [...prev];
+      const tmp = copy[index];
+      copy[index] = copy[target];
+      copy[target] = tmp;
+      return copy;
+    });
+  };
+
+  const updateDraft = (id: string, patch: Partial<DraftTask>) => {
+    setDrafts((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
   };
 
   return (
@@ -59,82 +131,189 @@ export default function AiInputScreen() {
         >
           <Ionicons name="close" size={22} color={colors.ink} />
         </Pressable>
-        <Text style={styles.topTitle}>AI Input</Text>
+        <Text style={styles.topTitle}>Add tasks</Text>
         <View style={{ width: 40 }} />
+      </View>
+
+      <View style={styles.modeRow}>
+        {([
+          { id: 'ai', label: 'AI parse' },
+          { id: 'manual', label: 'Manual' },
+        ] as const).map((item) => (
+          <Pressable
+            key={item.id}
+            onPress={() => setMode(item.id)}
+            style={[styles.modeChip, mode === item.id && styles.modeChipActive]}
+          >
+            <Text style={[styles.modeText, mode === item.id && styles.modeTextActive]}>
+              {item.label}
+            </Text>
+          </Pressable>
+        ))}
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <Animated.View entering={FadeIn}>
-          <Text style={styles.brand}>Kairos AI</Text>
-          <Text style={styles.title}>What’s on your mind?</Text>
-          <Text style={styles.subtitle}>
-            Type naturally — Kairos will parse tasks and categories.
-          </Text>
-        </Animated.View>
+        <Text style={styles.brand}>Kairos AI</Text>
+        <Text style={styles.title}>
+          {mode === 'ai' ? 'What’s on your mind?' : 'Create a task'}
+        </Text>
+        <Text style={styles.subtitle}>
+          Add tasks, reorder them, set priority, then schedule into{' '}
+          {selectedDate}.
+        </Text>
 
-        <View style={styles.inputRow}>
-          <TextInput
-            value={prompt}
-            onChangeText={setPrompt}
-            multiline
-            style={styles.input}
-            placeholderTextColor={colors.inkMuted}
-          />
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Parse tasks"
-            onPress={runParse}
-            style={({ pressed }) => [
-              styles.parseBtn,
-              pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
-            ]}
-          >
-            <Ionicons name="play" size={20} color={colors.white} />
-          </Pressable>
-        </View>
-
-        {parsed && (
-          <Animated.View entering={FadeInDown} style={styles.parsedBlock}>
-            <Text style={styles.parsedTitle}>PARSED TASKS ✓</Text>
-            <View style={styles.parsedList}>
-              {parsed.map((task) => (
-                <View
-                  key={task.id}
+        {mode === 'ai' ? (
+          <View style={styles.inputRow}>
+            <TextInput
+              value={prompt}
+              onChangeText={setPrompt}
+              multiline
+              style={styles.input}
+              placeholderTextColor={colors.inkMuted}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Parse tasks"
+              onPress={parsePrompt}
+              style={({ pressed }) => [
+                styles.parseBtn,
+                pressed && { opacity: 0.85 },
+              ]}
+            >
+              <Ionicons name="play" size={20} color={colors.white} />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.manualBox}>
+            <TextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Task title"
+              placeholderTextColor={colors.inkMuted}
+              style={styles.singleInput}
+            />
+            <TextInput
+              value={durationText}
+              onChangeText={setDurationText}
+              placeholder="Duration minutes"
+              keyboardType="numeric"
+              placeholderTextColor={colors.inkMuted}
+              style={styles.singleInput}
+            />
+            <Text style={styles.fieldLabel}>Category</Text>
+            <View style={styles.chipRow}>
+              {(Object.keys(categoryMeta) as Category[]).map((value) => (
+                <Pressable
+                  key={value}
+                  onPress={() => setCategory(value)}
                   style={[
-                    styles.parsedCard,
-                    { backgroundColor: categoryMeta[task.category].soft },
+                    styles.miniChip,
+                    category === value && {
+                      backgroundColor: categoryMeta[value].color,
+                      borderColor: categoryMeta[value].color,
+                    },
                   ]}
                 >
-                  <View style={styles.parsedLeft}>
-                    <Ionicons
-                      name={iconFor[task.category] as keyof typeof Ionicons.glyphMap}
-                      size={18}
-                      color={categoryMeta[task.category].color}
-                    />
-                    <Text style={styles.parsedName}>
-                      {task.title} – {task.duration}
-                    </Text>
-                  </View>
-                  <CategoryTag category={task.category} />
-                </View>
+                  <Text
+                    style={[
+                      styles.miniChipText,
+                      category === value && { color: colors.white },
+                    ]}
+                  >
+                    {value}
+                  </Text>
+                </Pressable>
               ))}
             </View>
-          </Animated.View>
+            <Text style={styles.fieldLabel}>Priority</Text>
+            <View style={styles.chipRow}>
+              {(['high', 'medium', 'low'] as Priority[]).map((value) => (
+                <Pressable
+                  key={value}
+                  onPress={() => setPriority(value)}
+                  style={[
+                    styles.miniChip,
+                    priority === value && styles.miniChipActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.miniChipText,
+                      priority === value && styles.miniChipTextActive,
+                    ]}
+                  >
+                    {value}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <PrimaryButton label="Add to list" onPress={addManual} />
+          </View>
+        )}
+
+        {drafts.length > 0 && (
+          <View style={styles.parsedBlock}>
+            <Text style={styles.parsedTitle}>TASK QUEUE ({drafts.length})</Text>
+            {drafts.map((task, index) => (
+              <View
+                key={task.id}
+                style={[
+                  styles.parsedCard,
+                  { backgroundColor: categoryMeta[task.category].soft },
+                ]}
+              >
+                <View style={styles.parsedLeft}>
+                  <Ionicons
+                    name={iconFor[task.category] as keyof typeof Ionicons.glyphMap}
+                    size={18}
+                    color={categoryMeta[task.category].color}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <TextInput
+                      value={task.title}
+                      onChangeText={(value) => updateDraft(task.id, { title: value })}
+                      style={styles.parsedName}
+                    />
+                    <Text style={styles.parsedMeta}>
+                      {formatDuration(task.durationMinutes)} · {task.priority}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.queueActions}>
+                  <CategoryTag category={task.category} />
+                  <Pressable onPress={() => moveDraft(task.id, 'up')} style={styles.iconBtn}>
+                    <Ionicons name="arrow-up" size={16} color={colors.ink} />
+                  </Pressable>
+                  <Pressable onPress={() => moveDraft(task.id, 'down')} style={styles.iconBtn}>
+                    <Ionicons name="arrow-down" size={16} color={colors.ink} />
+                  </Pressable>
+                  <Pressable
+                    onPress={() =>
+                      setDrafts((prev) => prev.filter((d) => d.id !== task.id))
+                    }
+                    style={styles.iconBtn}
+                  >
+                    <Ionicons name="trash-outline" size={16} color={colors.alert} />
+                  </Pressable>
+                </View>
+                <Text style={styles.orderBadge}>#{index + 1}</Text>
+              </View>
+            ))}
+          </View>
         )}
       </ScrollView>
 
       <PrimaryButton
         label="Schedule All →"
         onPress={() => {
-          if (parsed) {
-            addParsedTasks(parsed);
-          } else {
-            runParse();
-            addParsedTasks(defaultParsed);
+          if (!drafts.length) {
+            if (mode === 'ai') parsePrompt();
+            return;
           }
+          addDraftTasks(drafts, selectedDate);
           router.replace('/(tabs)');
         }}
       />
@@ -164,34 +343,28 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: colors.inkSoft,
   },
-  content: {
-    gap: 16,
-    paddingBottom: 20,
-    flexGrow: 1,
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  modeChip: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: colors.bgElevated,
   },
-  brand: {
-    fontFamily: fonts.brandItalic,
-    fontSize: 24,
-    color: colors.ink,
-  },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 26,
-    color: colors.ink,
-    marginTop: 2,
-  },
+  modeChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  modeText: { fontFamily: fonts.medium, color: colors.ink },
+  modeTextActive: { color: colors.white },
+  content: { gap: 14, paddingBottom: 20, flexGrow: 1 },
+  brand: { fontFamily: fonts.brandItalic, fontSize: 24, color: colors.ink },
+  title: { fontFamily: fonts.bold, fontSize: 26, color: colors.ink },
   subtitle: {
     fontFamily: fonts.body,
     fontSize: 14,
     color: colors.inkMuted,
-    marginTop: 4,
     lineHeight: 20,
   },
-  inputRow: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-end',
-  },
+  inputRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-end' },
   input: {
     flex: 1,
     minHeight: 120,
@@ -213,41 +386,84 @@ const styles = StyleSheet.create({
     backgroundColor: colors.black,
     alignItems: 'center',
     justifyContent: 'center',
-    ...Platform.select({
-      web: { cursor: 'pointer' } as object,
-      default: {},
-    }),
+    ...Platform.select({ web: { cursor: 'pointer' } as object, default: {} }),
   },
-  parsedBlock: {
-    gap: 12,
+  manualBox: { gap: 10 },
+  singleInput: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.bgElevated,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontFamily: fonts.body,
+    color: colors.ink,
   },
+  fieldLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.inkSoft,
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  miniChip: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.bgElevated,
+  },
+  miniChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
+  miniChipText: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.ink,
+    textTransform: 'capitalize',
+  },
+  miniChipTextActive: { color: colors.white },
+  parsedBlock: { gap: 10 },
   parsedTitle: {
     fontFamily: fonts.bold,
     fontSize: 12,
     letterSpacing: 1.1,
     color: colors.inkSoft,
   },
-  parsedList: {
-    gap: 10,
-  },
   parsedCard: {
     borderRadius: radii.md,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    padding: 12,
     gap: 10,
   },
-  parsedLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
+  parsedLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   parsedName: {
     fontFamily: fonts.semibold,
     fontSize: 15,
     color: colors.ink,
+    padding: 0,
+  },
+  parsedMeta: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.inkSoft,
+  },
+  queueActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  iconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.bgElevated,
+    borderWidth: 1,
+    borderColor: colors.line,
+  },
+  orderBadge: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    color: colors.inkMuted,
   },
 });

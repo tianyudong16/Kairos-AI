@@ -1,13 +1,28 @@
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ScheduleTimeline } from '@/components/dashboard/ScheduleTimeline';
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
+import { addDays, formatDisplayDate } from '@/lib/schedule';
 import { colors, fonts, radii } from '@/constants/theme';
 
 export default function DashboardScreen() {
-  const { tasks, chronotype } = useApp();
+  const router = useRouter();
+  const {
+    tasksForSelectedDate,
+    selectedDate,
+    setSelectedDate,
+    chronotype,
+    sleep,
+    peakWindowLabel,
+    capacitySummary,
+    reorderTask,
+    deleteTask,
+    optimizeSchedule,
+  } = useApp();
 
   return (
     <ScrollView
@@ -18,18 +33,41 @@ export default function DashboardScreen() {
         <View style={styles.headerText}>
           <Text style={styles.brand}>Kairos AI</Text>
           <Text style={styles.greeting}>Good morning</Text>
-          <Text style={styles.date}>Monday · Aug 3</Text>
+          <Text style={styles.date}>{formatDisplayDate(selectedDate)}</Text>
         </View>
-        <View style={styles.avatar}>
-          <Ionicons name="person" size={20} color={colors.inkSoft} />
-        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+          onPress={() => router.push('/(tabs)/settings')}
+          style={styles.avatar}
+        >
+          <Ionicons name="settings-outline" size={20} color={colors.inkSoft} />
+        </Pressable>
       </Animated.View>
+
+      <View style={styles.dayNav}>
+        <Pressable
+          onPress={() => setSelectedDate(addDays(selectedDate, -1))}
+          style={styles.dayBtn}
+        >
+          <Ionicons name="chevron-back" size={18} color={colors.ink} />
+        </Pressable>
+        <Pressable onPress={() => router.push('/(tabs)/calendar')} style={styles.dayCenter}>
+          <Text style={styles.dayCenterText}>Calendar view</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => setSelectedDate(addDays(selectedDate, 1))}
+          style={styles.dayBtn}
+        >
+          <Ionicons name="chevron-forward" size={18} color={colors.ink} />
+        </Pressable>
+      </View>
 
       <Animated.View entering={FadeInDown.delay(80)} style={styles.energyCard}>
         <View style={styles.energyTop}>
           <View style={styles.energyLabelRow}>
             <Ionicons name="flash" size={16} color={colors.energy} />
-            <Text style={styles.energyLabel}>Energy: Peak Focus</Text>
+            <Text style={styles.energyLabel}>Energy: {peakWindowLabel}</Text>
           </View>
           <Text style={styles.chrono}>
             {chronotype === 'early-bird'
@@ -41,15 +79,34 @@ export default function DashboardScreen() {
                   : 'Morning Person'}
           </Text>
         </View>
-        <View style={styles.wave}>
-          {[0.35, 0.55, 0.9, 0.7, 0.45, 0.3, 0.2].map((h, i) => (
-            <View key={i} style={[styles.waveBar, { height: 18 + h * 28 }]} />
-          ))}
-        </View>
+        <Text style={styles.sleepLine}>
+          Sleep window · wake {sleep.wakeTime} / bed {sleep.bedtime}
+        </Text>
+        <Text style={styles.capacityLine}>
+          Focus load {capacitySummary.focusHours}h · capacity{' '}
+          {capacitySummary.capacityHours}h
+          {capacitySummary.overflowHours > 0
+            ? ` · overflow ${capacitySummary.overflowHours}h`
+            : ''}
+        </Text>
       </Animated.View>
 
-      <Text style={styles.sectionTitle}>Today’s schedule</Text>
-      <ScheduleTimeline tasks={tasks} />
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Today’s schedule</Text>
+        <PrimaryButton
+          label="Optimize"
+          variant="secondary"
+          onPress={() => optimizeSchedule(selectedDate)}
+          style={styles.optimizeBtn}
+        />
+      </View>
+
+      <ScheduleTimeline
+        tasks={tasksForSelectedDate}
+        onMoveUp={(id) => reorderTask(id, 'up')}
+        onMoveDown={(id) => reorderTask(id, 'down')}
+        onDelete={deleteTask}
+      />
     </ScrollView>
   );
 }
@@ -64,9 +121,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  headerText: {
-    gap: 2,
-  },
+  headerText: { gap: 2 },
   brand: {
     fontFamily: fonts.brandItalic,
     fontSize: 26,
@@ -93,13 +148,43 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  dayNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dayBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bgElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayCenter: {
+    flex: 1,
+    height: 36,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bgElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayCenterText: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.inkSoft,
+  },
   energyCard: {
     backgroundColor: colors.bgElevated,
     borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.line,
     padding: 16,
-    gap: 14,
+    gap: 8,
   },
   energyTop: {
     flexDirection: 'row',
@@ -121,22 +206,29 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.inkMuted,
   },
-  wave: {
-    height: 52,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
+  sleepLine: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkSoft,
   },
-  waveBar: {
-    flex: 1,
-    borderRadius: 8,
-    backgroundColor: colors.ink,
-    opacity: 0.85,
+  capacityLine: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.inkMuted,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
   },
   sectionTitle: {
     fontFamily: fonts.semibold,
     fontSize: 16,
     color: colors.ink,
-    marginTop: 4,
+  },
+  optimizeBtn: {
+    minHeight: 40,
+    paddingHorizontal: 14,
   },
 });

@@ -17,8 +17,10 @@ export default function TabLayout() {
           }}
         >
           <Tabs.Screen name="index" options={{ title: 'Home' }} />
+          <Tabs.Screen name="calendar" options={{ title: 'Calendar' }} />
           <Tabs.Screen name="analytics" options={{ title: 'Analytics' }} />
           <Tabs.Screen name="coach" options={{ title: 'AI Coach' }} />
+          <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
         </Tabs>
       </View>
     </AppShell>

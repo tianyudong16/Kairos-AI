@@ -15,14 +15,27 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
 
+const quickActions = [
+  'Protect peak window',
+  'Move low priority to tomorrow',
+  'Prioritize work today',
+  'Set bedtime 11pm',
+];
+
 export default function CoachScreen() {
-  const { coachMessages, sendCoachMessage } = useApp();
+  const {
+    coachMessages,
+    sendCoachMessage,
+    capacitySummary,
+    sleep,
+    peakWindowLabel,
+  } = useApp();
   const [draft, setDraft] = useState('');
 
-  const submit = () => {
-    const text = draft.trim();
-    if (!text) return;
-    sendCoachMessage(text);
+  const submit = (text?: string) => {
+    const value = (text ?? draft).trim();
+    if (!value) return;
+    sendCoachMessage(value);
     setDraft('');
   };
 
@@ -37,8 +50,30 @@ export default function CoachScreen() {
           <Ionicons name="flash" size={18} color={colors.energy} />
           <Text style={styles.title}>AI Coach</Text>
         </View>
-        <Text style={styles.subtitle}>Co-pilot for your day</Text>
+        <Text style={styles.subtitle}>
+          Co-pilot that actually reshuffles tasks, priorities, and sleep.
+        </Text>
+        <Text style={styles.meta}>
+          {peakWindowLabel} · wake {sleep.wakeTime} / bed {sleep.bedtime} · focus{' '}
+          {capacitySummary.focusHours}h / {capacitySummary.capacityHours}h
+        </Text>
       </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.quickRow}
+      >
+        {quickActions.map((action) => (
+          <Pressable
+            key={action}
+            onPress={() => submit(action)}
+            style={styles.quickChip}
+          >
+            <Text style={styles.quickText}>{action}</Text>
+          </Pressable>
+        ))}
+      </ScrollView>
 
       <ScrollView
         style={styles.flex}
@@ -48,7 +83,7 @@ export default function CoachScreen() {
         {coachMessages.map((message, index) => (
           <Animated.View
             key={message.id}
-            entering={FadeInUp.delay(index * 70)}
+            entering={FadeInUp.delay(index * 40)}
             style={[
               styles.bubble,
               message.role === 'user' ? styles.userBubble : styles.aiBubble,
@@ -65,12 +100,15 @@ export default function CoachScreen() {
           </Animated.View>
         ))}
 
-        <Animated.View entering={FadeInDown.delay(220)} style={styles.alert}>
-          <Ionicons name="warning" size={18} color={colors.energy} />
-          <Text style={styles.alertText}>
-            Capacity alert: 3.5h overflow before sleep cutoff.
-          </Text>
-        </Animated.View>
+        {capacitySummary.overflowHours > 0 ? (
+          <Animated.View entering={FadeInDown.delay(120)} style={styles.alert}>
+            <Ionicons name="warning" size={18} color={colors.energy} />
+            <Text style={styles.alertText}>
+              Capacity alert: {capacitySummary.overflowHours}h overflow before
+              bedtime. Ask me to move low-priority work.
+            </Text>
+          </Animated.View>
+        ) : null}
       </ScrollView>
 
       <View style={styles.composer}>
@@ -80,13 +118,13 @@ export default function CoachScreen() {
           placeholder="Ask Kairos to reshape your day…"
           placeholderTextColor={colors.inkMuted}
           style={styles.input}
-          onSubmitEditing={submit}
+          onSubmitEditing={() => submit()}
           returnKeyType="send"
         />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Send message"
-          onPress={submit}
+          onPress={() => submit()}
           style={({ pressed }) => [styles.send, pressed && { opacity: 0.85 }]}
         >
           <Ionicons name="arrow-up" size={20} color={colors.white} />
@@ -97,37 +135,29 @@ export default function CoachScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex: {
-    flex: 1,
+  flex: { flex: 1 },
+  header: { marginBottom: 10, gap: 2 },
+  brand: { fontFamily: fonts.brandItalic, fontSize: 24, color: colors.ink },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  title: { fontFamily: fonts.bold, fontSize: 28, color: colors.ink },
+  subtitle: { fontFamily: fonts.body, fontSize: 14, color: colors.inkMuted },
+  meta: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.inkSoft,
+    marginTop: 4,
   },
-  header: {
-    marginBottom: 12,
-    gap: 2,
+  quickRow: { gap: 8, paddingBottom: 10 },
+  quickChip: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.lineStrong,
+    backgroundColor: colors.bgElevated,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  brand: {
-    fontFamily: fonts.brandItalic,
-    fontSize: 24,
-    color: colors.ink,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 28,
-    color: colors.ink,
-  },
-  subtitle: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.inkMuted,
-  },
-  messages: {
-    gap: 12,
-    paddingBottom: 12,
-  },
+  quickText: { fontFamily: fonts.medium, fontSize: 12, color: colors.ink },
+  messages: { gap: 12, paddingBottom: 12 },
   bubble: {
     borderRadius: radii.lg,
     paddingHorizontal: 16,
@@ -150,9 +180,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     color: colors.ink,
   },
-  userText: {
-    color: colors.white,
-  },
+  userText: { color: colors.white },
   alert: {
     marginTop: 4,
     borderWidth: 1.5,

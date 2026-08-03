@@ -5,17 +5,41 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { CircadianChart } from '@/components/analytics/CircadianChart';
 import { FocusRing } from '@/components/analytics/FocusRing';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
-
-const metrics = [
-  { label: 'High Focus', value: '4.5h' },
-  { label: 'Scheduled', value: '7.5h' },
-  { label: 'Burnout Risk', value: 'Low' },
-  { label: 'Efficiency', value: '91%' },
-];
 
 export default function AnalyticsScreen() {
   const router = useRouter();
+  const { capacitySummary, tasksForSelectedDate, sleep } = useApp();
+  const scheduledHours =
+    Math.round(
+      (tasksForSelectedDate.reduce((sum, t) => sum + t.durationMinutes, 0) / 60) *
+        10
+    ) / 10;
+  const score = Math.max(
+    40,
+    Math.min(
+      98,
+      Math.round(
+        100 -
+          capacitySummary.overflowHours * 12 +
+          (capacitySummary.focusHours > 0 ? 4 : 0)
+      )
+    )
+  );
+
+  const metrics = [
+    { label: 'High Focus', value: `${capacitySummary.focusHours}h` },
+    { label: 'Scheduled', value: `${scheduledHours}h` },
+    {
+      label: 'Burnout Risk',
+      value: capacitySummary.overflowHours > 1.5 ? 'High' : capacitySummary.overflowHours > 0 ? 'Med' : 'Low',
+    },
+    {
+      label: 'Sleep Cap',
+      value: `${sleep.wakeTime}-${sleep.bedtime}`,
+    },
+  ];
 
   return (
     <ScrollView
@@ -31,10 +55,13 @@ export default function AnalyticsScreen() {
       <Animated.View entering={FadeInDown.delay(80)} style={styles.scoreCard}>
         <View style={styles.scoreCopy}>
           <Text style={styles.scoreLabel}>Focus Score</Text>
-          <Text style={styles.scoreValue}>87 / 100</Text>
-          <Text style={styles.scoreHint}>Above your weekly average</Text>
+          <Text style={styles.scoreValue}>{score} / 100</Text>
+          <Text style={styles.scoreHint}>
+            Capacity {capacitySummary.capacityHours}h · overflow{' '}
+            {capacitySummary.overflowHours}h
+          </Text>
         </View>
-        <FocusRing score={87} />
+        <FocusRing score={score} />
       </Animated.View>
 
       <Animated.View entering={FadeInDown.delay(140)}>
