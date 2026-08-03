@@ -84,6 +84,29 @@ async function main() {
     (await page.getByRole('button', { name: 'Insights' }).count()) === 0
   );
 
+  await page.goto(`${base}/calendar`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(600);
+  // Select another day in the week grid (last day card)
+  await page.getByText(/\d+ tasks/).last().click();
+  await page.waitForTimeout(400);
+  const addForDay = page.getByRole('button', { name: /Add tasks for/i });
+  await check(results, 'calendar add cta', (await addForDay.count()) > 0);
+  await addForDay.first().click();
+  await page.waitForTimeout(700);
+  await check(
+    results,
+    'add for selected day',
+    (await page.getByText(/schedule into/i).count()) > 0
+  );
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.waitForTimeout(400);
+  await check(
+    results,
+    'nav not stuck on Today',
+    (await page.getByRole('button', { name: /^Today$/ }).count()) === 0 ||
+      (await page.getByRole('button', { name: /Selected day/i }).count()) > 0
+  );
+
   await page.goto(`${base}/settings`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(700);
   await check(results, 'settings categories', (await page.getByText('Categories').count()) > 0);

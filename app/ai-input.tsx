@@ -18,7 +18,12 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { PriorityTag } from '@/components/ui/PriorityTag';
 import { Category, DraftTask, Priority, useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
-import { formatDuration, parseDuration } from '@/lib/schedule';
+import {
+  formatDisplayDate,
+  formatDuration,
+  isToday,
+  parseDuration,
+} from '@/lib/schedule';
 
 type Mode = 'ai' | 'manual';
 
@@ -138,6 +143,7 @@ export default function AiInputScreen() {
       <View style={styles.topBar}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Close"
           onPress={() => router.back()}
           style={styles.close}
         >
@@ -174,7 +180,8 @@ export default function AiInputScreen() {
           {mode === 'ai' ? 'Parse a brain dump' : 'Build your task queue'}
         </Text>
         <Text style={styles.subtitle}>
-          Set priority, reorder with ↑↓, then schedule into {selectedDate}.
+          Set priority, reorder with ↑↓, then schedule into{' '}
+          {isToday(selectedDate) ? 'today' : formatDisplayDate(selectedDate)}.
         </Text>
 
         {mode === 'ai' ? (
@@ -388,7 +395,10 @@ export default function AiInputScreen() {
             return;
           }
           addDraftTasks(drafts, selectedDate);
-          router.replace('/(tabs)');
+          // Return to the day you were planning — calendar if not today
+          router.replace(
+            isToday(selectedDate) ? '/(tabs)' : '/(tabs)/calendar'
+          );
         }}
       />
 

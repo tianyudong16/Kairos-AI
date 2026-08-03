@@ -138,6 +138,20 @@ export function formatDisplayDate(key: string) {
   });
 }
 
+/** Compact label for nav: "Today" or "Thu 6" */
+export function formatDayTabLabel(key: string, todayKey = toDateKey(new Date())) {
+  if (key === todayKey) return 'Today';
+  const date = parseDateKey(key);
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    day: 'numeric',
+  });
+}
+
+export function isToday(key: string, todayKey = toDateKey(new Date())) {
+  return key === todayKey;
+}
+
 export function timeToMinutes(time: string) {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;

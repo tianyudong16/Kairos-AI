@@ -1,10 +1,13 @@
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import {
   formatDisplayDate,
   getMonthMatrix,
+  isToday,
   parseDateKey,
   startOfWeek,
   toDateKey,
@@ -15,12 +18,14 @@ import { colors, fonts, radii } from '@/constants/theme';
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function CalendarScreen() {
+  const router = useRouter();
   const { tasks, selectedDate, setSelectedDate, tasksForSelectedDate } = useApp();
   const [mode, setMode] = useState<'week' | 'month'>('week');
   const selected = parseDateKey(selectedDate);
   const [monthCursor, setMonthCursor] = useState(
     new Date(selected.getFullYear(), selected.getMonth(), 1)
   );
+  const selectedIsToday = isToday(selectedDate);
 
   const weekStart = startOfWeek(selectedDate);
   const weekDays = useMemo(
@@ -157,9 +162,14 @@ export default function CalendarScreen() {
       )}
 
       <View style={styles.selectedBlock}>
+        <Text style={styles.selectedEyebrow}>
+          {selectedIsToday ? 'Selected · Today' : 'Selected day'}
+        </Text>
         <Text style={styles.selectedTitle}>{formatDisplayDate(selectedDate)}</Text>
         {tasksForSelectedDate.length === 0 ? (
-          <Text style={styles.selectedEmpty}>No tasks — use + to add some.</Text>
+          <Text style={styles.selectedEmpty}>
+            No tasks on this day yet — add some below.
+          </Text>
         ) : (
           tasksForSelectedDate.map((task) => (
             <Text key={task.id} style={styles.selectedItem}>
@@ -167,14 +177,33 @@ export default function CalendarScreen() {
             </Text>
           ))
         )}
+        <PrimaryButton
+          label={
+            selectedIsToday
+              ? 'Add tasks for today'
+              : `Add tasks for ${formatDisplayDate(selectedDate).split(',')[0]}`
+          }
+          onPress={() => router.push('/ai-input')}
+          style={styles.addBtn}
+        />
+        <Pressable
+          onPress={() => router.push('/(tabs)')}
+          style={styles.viewDayLink}
+        >
+          <Text style={styles.viewDayText}>
+            {selectedIsToday ? 'Open today’s schedule →' : 'Open this day’s schedule →'}
+          </Text>
+        </Pressable>
       </View>
 
-      <Pressable
-        onPress={() => setSelectedDate(toDateKey(new Date()))}
-        style={styles.todayBtn}
-      >
-        <Text style={styles.todayText}>Jump to today</Text>
-      </Pressable>
+      {!selectedIsToday ? (
+        <Pressable
+          onPress={() => setSelectedDate(toDateKey(new Date()))}
+          style={styles.todayBtn}
+        >
+          <Text style={styles.todayText}>Jump to today</Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
@@ -262,11 +291,21 @@ const styles = StyleSheet.create({
     borderColor: colors.line,
     backgroundColor: colors.bgElevated,
     padding: 14,
-    gap: 6,
+    gap: 8,
+  },
+  selectedEyebrow: {
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    letterSpacing: 0.8,
+    color: colors.inkMuted,
+    textTransform: 'uppercase',
   },
   selectedTitle: { fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
   selectedEmpty: { fontFamily: fonts.body, color: colors.inkMuted },
   selectedItem: { fontFamily: fonts.medium, color: colors.inkSoft, fontSize: 13 },
+  addBtn: { marginTop: 4 },
+  viewDayLink: { paddingVertical: 4 },
+  viewDayText: { fontFamily: fonts.semibold, color: colors.calendar, fontSize: 13 },
   todayBtn: {
     alignSelf: 'center',
     paddingHorizontal: 16,

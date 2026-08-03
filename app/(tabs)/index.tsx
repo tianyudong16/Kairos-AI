@@ -6,7 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ScheduleTimeline } from '@/components/dashboard/ScheduleTimeline';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
-import { addDays, formatDisplayDate } from '@/lib/schedule';
+import { addDays, formatDisplayDate, isToday } from '@/lib/schedule';
 import { colors, fonts, radii } from '@/constants/theme';
 
 export default function DashboardScreen() {
@@ -25,6 +25,7 @@ export default function DashboardScreen() {
     updateTask,
     optimizeSchedule,
   } = useApp();
+  const viewingToday = isToday(selectedDate);
 
   return (
     <ScrollView
@@ -94,7 +95,9 @@ export default function DashboardScreen() {
       </Animated.View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Today’s schedule</Text>
+        <Text style={styles.sectionTitle}>
+          {viewingToday ? 'Today’s schedule' : 'Day schedule'}
+        </Text>
         <PrimaryButton
           label="Optimize"
           variant="secondary"
@@ -102,6 +105,11 @@ export default function DashboardScreen() {
           style={styles.optimizeBtn}
         />
       </View>
+      {!viewingToday ? (
+        <Text style={styles.otherDayHint}>
+          Showing {formatDisplayDate(selectedDate)} — + adds tasks to this day.
+        </Text>
+      ) : null}
 
       <View style={styles.legend}>
         {categories.map((cat) => (
@@ -139,6 +147,12 @@ const styles = StyleSheet.create({
   content: {
     paddingBottom: 20,
     gap: 16,
+  },
+  otherDayHint: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkMuted,
+    marginTop: -8,
   },
   header: {
     flexDirection: 'row',
