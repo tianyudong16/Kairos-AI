@@ -13,60 +13,65 @@ async function main() {
   page.on('pageerror', (err) => results.push(`PAGE_ERROR: ${err.message}`));
 
   await page.goto(base, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1000);
 
   await page.getByRole('button', { name: /Continue/i }).click();
   await page.waitForTimeout(400);
-  await page.getByText('23:00').first().click();
   await page.getByRole('button', { name: /Start planning/i }).click();
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(800);
   await check(results, 'dashboard', (await page.getByText('Today’s schedule').count()) > 0);
 
-  const fab = page.getByRole('button', { name: /Add task/i });
-  await check(results, 'fab visible', await fab.isVisible());
-  await fab.click();
-  await page.waitForTimeout(800);
-  await check(results, 'add screen', (await page.getByText('Add tasks').count()) > 0);
+  await page.getByRole('button', { name: /Add task/i }).click();
+  await page.waitForTimeout(700);
 
-  await page.getByText('Manual', { exact: true }).click();
-  await page.getByPlaceholder('Task title').fill('Deep work block');
-  await page.getByPlaceholder('Duration minutes').fill('90');
-  await page.getByRole('button', { name: /Add to list/i }).click();
+  await page.getByRole('button', { name: 'Set priority low' }).first().click();
+  await page.waitForTimeout(200);
+  await check(results, 'priority change', (await page.getByText('LOW').count()) > 0);
+
+  const before = await page
+    .locator('input')
+    .evaluateAll((els) => els.map((e) => e.value).filter(Boolean));
+  await page.getByRole('button', { name: 'Move task down' }).first().click();
   await page.waitForTimeout(400);
-  await check(results, 'manual queue', (await page.getByText('TASK QUEUE').count()) > 0);
-  await page.getByRole('button', { name: /Schedule All/i }).click();
-  await page.waitForTimeout(900);
-  await check(results, 'scheduled', (await page.getByText('Deep work block').count()) > 0);
-
-  await page.goto(`${base}/calendar`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(900);
-  await check(results, 'calendar', (await page.getByText('Plan by week or month').count()) > 0);
-  const monthChip = page.locator('div', { hasText: /^Month$/ }).last();
-  if (await monthChip.count()) {
-    await monthChip.click({ force: true }).catch(() => {});
-  }
-
-  await page.goto(`${base}/coach`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(900);
-  await page.getByText('Protect peak window').click();
-  await page.waitForTimeout(800);
+  const after = await page
+    .locator('input')
+    .evaluateAll((els) => els.map((e) => e.value).filter(Boolean));
   await check(
     results,
-    'coach action',
-    (await page.getByText(/Protected your peak window/i).count()) > 0
+    'reorder',
+    before.includes('Deep work block') &&
+      after.includes('Recovery walk') &&
+      after.indexOf('Recovery walk') < after.indexOf('Deep work block')
   );
 
-  await page.goto(`${base}/settings`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(900);
-  await check(results, 'settings', (await page.getByText('Current sleep window').count()) > 0);
+  await page.getByRole('button', { name: /Schedule/i }).click();
+  await page.waitForTimeout(800);
+
+  await page.goto(`${base}/coach`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(700);
+  await page.getByText('Add a 20m reset in the afternoon').click();
+  await page.waitForTimeout(700);
+  await check(results, 'coach break', (await page.getByText(/recovery break/i).count()) > 0);
+  await check(results, 'coach changes', (await page.getByText('Latest changes').count()) > 0);
+
+  await page.getByText('Break a long block into two sessions').click();
+  await page.waitForTimeout(700);
+  await check(results, 'coach split', (await page.getByText(/Split/i).count()) > 0);
+
+  await check(results, 'nav today', (await page.getByRole('button', { name: 'Today' }).count()) > 0);
+  await check(
+    results,
+    'nav no insights tab',
+    (await page.getByRole('button', { name: 'Insights' }).count()) === 0
+  );
 
   console.log(results.join('\n'));
-  await page.screenshot({ path: '/tmp/kairos-features.png', fullPage: true });
+  await page.screenshot({ path: '/tmp/kairos-ux.png', fullPage: true });
   await browser.close();
   if (results.some((r) => r.includes('FAIL') || r.startsWith('PAGE_ERROR'))) process.exit(1);
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((e) => {
+  console.error(e);
   process.exit(1);
 });

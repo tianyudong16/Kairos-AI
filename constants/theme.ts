@@ -1,26 +1,41 @@
 export const colors = {
-  bg: '#F2EFE6',
-  bgElevated: '#FAF8F2',
-  ink: '#1C1A17',
-  inkSoft: '#5C574E',
-  inkMuted: '#8A8478',
-  line: 'rgba(28, 26, 23, 0.10)',
-  lineStrong: 'rgba(28, 26, 23, 0.18)',
+  bg: '#F4F0E6',
+  bgElevated: '#FFFCF5',
+  ink: '#1A1814',
+  inkSoft: '#5A5348',
+  inkMuted: '#8B8275',
+  line: 'rgba(26, 24, 20, 0.10)',
+  lineStrong: 'rgba(26, 24, 20, 0.18)',
   white: '#FFFFFF',
   black: '#12100E',
-  work: '#6B5CE0',
-  workSoft: '#E8E4FF',
-  study: '#4A8BC9',
-  studySoft: '#DCECF8',
-  health: '#4F9A6A',
-  healthSoft: '#DCEFDF',
-  life: '#C9873A',
-  lifeSoft: '#F7E7C8',
-  alert: '#D64545',
-  alertSoft: '#FCE4E4',
-  coach: '#2F6FED',
-  coachSoft: '#E7F0FF',
-  energy: '#E2A33A',
+
+  // Stronger category accents for scanning
+  work: '#5B4FE8',
+  workSoft: '#DDD8FF',
+  study: '#1F7FBF',
+  studySoft: '#CDE8FA',
+  health: '#2F9A5B',
+  healthSoft: '#CDEFD8',
+  life: '#D97706',
+  lifeSoft: '#FFE2B8',
+
+  // Priority
+  priorityHigh: '#E11D48',
+  priorityHighSoft: '#FFE1E8',
+  priorityMedium: '#D97706',
+  priorityMediumSoft: '#FFE8C7',
+  priorityLow: '#0F766E',
+  priorityLowSoft: '#D5F5F0',
+
+  alert: '#DC2626',
+  alertSoft: '#FEE2E2',
+  coach: '#2563EB',
+  coachSoft: '#DBEAFE',
+  energy: '#EA580C',
+  calendar: '#7C3AED',
+  calendarSoft: '#EDE9FE',
+  today: '#0D9488',
+  todaySoft: '#CCFBF1',
 };
 
 export const categoryMeta = {
@@ -30,7 +45,26 @@ export const categoryMeta = {
   life: { label: 'LIFE', color: colors.life, soft: colors.lifeSoft },
 } as const;
 
+export const priorityMeta = {
+  high: {
+    label: 'HIGH',
+    color: colors.priorityHigh,
+    soft: colors.priorityHighSoft,
+  },
+  medium: {
+    label: 'MED',
+    color: colors.priorityMedium,
+    soft: colors.priorityMediumSoft,
+  },
+  low: {
+    label: 'LOW',
+    color: colors.priorityLow,
+    soft: colors.priorityLowSoft,
+  },
+} as const;
+
 export type Category = keyof typeof categoryMeta;
+export type PriorityTone = keyof typeof priorityMeta;
 
 export const spacing = {
   xs: 4,

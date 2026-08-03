@@ -2,7 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import type { Task } from '@/context/AppContext';
+import { PriorityTag } from '@/components/ui/PriorityTag';
+import type { Priority, Task } from '@/context/AppContext';
 import { categoryMeta, colors, fonts, radii } from '@/constants/theme';
 
 const iconMap = {
@@ -19,9 +20,16 @@ type Props = {
   onMoveUp?: (id: string) => void;
   onMoveDown?: (id: string) => void;
   onDelete?: (id: string) => void;
+  onPriority?: (id: string, priority: Priority) => void;
 };
 
-export function ScheduleTimeline({ tasks, onMoveUp, onMoveDown, onDelete }: Props) {
+export function ScheduleTimeline({
+  tasks,
+  onMoveUp,
+  onMoveDown,
+  onDelete,
+  onPriority,
+}: Props) {
   return (
     <View style={styles.wrap}>
       {tasks.length === 0 ? (
@@ -42,7 +50,12 @@ export function ScheduleTimeline({ tasks, onMoveUp, onMoveDown, onDelete }: Prop
               <Text style={styles.time}>{task.start}</Text>
               <View style={[styles.rail, { backgroundColor: meta.color }]} />
             </View>
-            <View style={[styles.card, { backgroundColor: meta.soft }]}>
+            <View
+              style={[
+                styles.card,
+                { backgroundColor: meta.soft, borderColor: meta.color },
+              ]}
+            >
               <View style={[styles.accent, { backgroundColor: meta.color }]} />
               <View style={styles.cardBody}>
                 <View style={styles.titleRow}>
@@ -52,24 +65,47 @@ export function ScheduleTimeline({ tasks, onMoveUp, onMoveDown, onDelete }: Prop
                     color={meta.color}
                   />
                   <Text style={styles.title}>{task.title}</Text>
+                  <View style={[styles.catPill, { backgroundColor: meta.color }]}>
+                    <Text style={styles.catText}>{meta.label}</Text>
+                  </View>
                 </View>
                 <Text style={styles.meta}>
-                  {task.start} – {task.end} · {task.priority.toUpperCase()}
+                  {task.start} – {task.end}
                 </Text>
+                {onPriority ? (
+                  <PriorityTag
+                    priority={task.priority}
+                    onChange={(next) => onPriority(task.id, next)}
+                  />
+                ) : (
+                  <PriorityTag priority={task.priority} />
+                )}
                 {(onMoveUp || onMoveDown || onDelete) && (
                   <View style={styles.actions}>
                     {onMoveUp ? (
-                      <Pressable onPress={() => onMoveUp(task.id)} style={styles.actionBtn}>
+                      <Pressable
+                        accessibilityLabel="Move up"
+                        onPress={() => onMoveUp(task.id)}
+                        style={styles.actionBtn}
+                      >
                         <Ionicons name="arrow-up" size={16} color={colors.ink} />
                       </Pressable>
                     ) : null}
                     {onMoveDown ? (
-                      <Pressable onPress={() => onMoveDown(task.id)} style={styles.actionBtn}>
+                      <Pressable
+                        accessibilityLabel="Move down"
+                        onPress={() => onMoveDown(task.id)}
+                        style={styles.actionBtn}
+                      >
                         <Ionicons name="arrow-down" size={16} color={colors.ink} />
                       </Pressable>
                     ) : null}
                     {onDelete ? (
-                      <Pressable onPress={() => onDelete(task.id)} style={styles.actionBtn}>
+                      <Pressable
+                        accessibilityLabel="Delete"
+                        onPress={() => onDelete(task.id)}
+                        style={styles.actionBtn}
+                      >
                         <Ionicons name="trash-outline" size={16} color={colors.alert} />
                       </Pressable>
                     ) : null}
@@ -94,78 +130,61 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 4,
   },
-  emptyTitle: {
-    fontFamily: fonts.semibold,
-    color: colors.ink,
-  },
-  emptyBody: {
-    fontFamily: fonts.body,
-    color: colors.inkMuted,
-    fontSize: 13,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'stretch',
-  },
-  timeCol: {
-    width: 48,
-    alignItems: 'center',
-  },
+  emptyTitle: { fontFamily: fonts.semibold, color: colors.ink },
+  emptyBody: { fontFamily: fonts.body, color: colors.inkMuted, fontSize: 13 },
+  row: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
+  timeCol: { width: 48, alignItems: 'center' },
   time: {
     fontFamily: fonts.medium,
     fontSize: 12,
     color: colors.inkMuted,
     marginBottom: 6,
   },
-  rail: {
-    width: 2,
-    flex: 1,
-    borderRadius: 2,
-    opacity: 0.45,
-  },
+  rail: { width: 3, flex: 1, borderRadius: 2, opacity: 0.7 },
   card: {
     flex: 1,
     borderRadius: radii.md,
     overflow: 'hidden',
     flexDirection: 'row',
     minHeight: 64,
+    borderWidth: 1,
   },
-  accent: { width: 5 },
+  accent: { width: 6 },
   cardBody: {
     flex: 1,
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 12,
     justifyContent: 'center',
-    gap: 4,
+    gap: 6,
   },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   title: {
     fontFamily: fonts.semibold,
     fontSize: 15,
     color: colors.ink,
     flex: 1,
   },
+  catPill: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  catText: {
+    color: colors.white,
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    letterSpacing: 0.4,
+  },
   meta: {
     fontFamily: fonts.body,
     fontSize: 12,
     color: colors.inkSoft,
-    marginLeft: 26,
   },
-  actions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-    marginLeft: 26,
-  },
+  actions: { flexDirection: 'row', gap: 8, marginTop: 2 },
   actionBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.bgElevated,

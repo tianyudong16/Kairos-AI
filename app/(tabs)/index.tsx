@@ -7,7 +7,7 @@ import { ScheduleTimeline } from '@/components/dashboard/ScheduleTimeline';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import { addDays, formatDisplayDate } from '@/lib/schedule';
-import { colors, fonts, radii } from '@/constants/theme';
+import { categoryMeta, colors, fonts, radii } from '@/constants/theme';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -21,6 +21,7 @@ export default function DashboardScreen() {
     capacitySummary,
     reorderTask,
     deleteTask,
+    updateTask,
     optimizeSchedule,
   } = useApp();
 
@@ -101,11 +102,33 @@ export default function DashboardScreen() {
         />
       </View>
 
+      <View style={styles.legend}>
+        {(['work', 'study', 'health', 'life'] as const).map((key) => (
+          <View
+            key={key}
+            style={[styles.legendItem, { backgroundColor: categoryMeta[key].soft }]}
+          >
+            <View style={[styles.legendDot, { backgroundColor: categoryMeta[key].color }]} />
+            <Text style={[styles.legendText, { color: categoryMeta[key].color }]}>
+              {categoryMeta[key].label}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <Pressable
+        onPress={() => router.push('/(tabs)/analytics')}
+        style={styles.insightsLink}
+      >
+        <Text style={styles.insightsText}>Open Insights →</Text>
+      </Pressable>
+
       <ScheduleTimeline
         tasks={tasksForSelectedDate}
         onMoveUp={(id) => reorderTask(id, 'up')}
         onMoveDown={(id) => reorderTask(id, 'down')}
         onDelete={deleteTask}
+        onPriority={(id, priority) => updateTask(id, { priority })}
       />
     </ScrollView>
   );
@@ -230,5 +253,37 @@ const styles = StyleSheet.create({
   optimizeBtn: {
     minHeight: 40,
     paddingHorizontal: 14,
+  },
+  legend: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: radii.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontFamily: fonts.bold,
+    fontSize: 10,
+    letterSpacing: 0.4,
+  },
+  insightsLink: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  insightsText: {
+    fontFamily: fonts.semibold,
+    color: colors.coach,
+    fontSize: 13,
   },
 });

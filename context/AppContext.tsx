@@ -21,6 +21,7 @@ import {
 export type { Chronotype, DraftTask, Priority, SleepSchedule, Task };
 
 type CoachMessage = { id: string; role: 'ai' | 'user'; text: string };
+type CoachChange = { id: string; label: string; detail: string };
 
 type AppContextValue = {
   onboarded: boolean;
@@ -48,6 +49,7 @@ type AppContextValue = {
   moveTaskDate: (id: string, date: string) => void;
   optimizeSchedule: (date?: string) => string;
   coachMessages: CoachMessage[];
+  lastCoachChanges: CoachChange[];
   sendCoachMessage: (text: string) => void;
   applyCoachAction: (action: string) => string;
   peakWindowLabel: string;
@@ -168,9 +170,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     {
       id: 'c1',
       role: 'ai',
-      text: 'I can reshuffle your day around sleep, priorities, and peak focus. Try “protect peak”, “move low priority tomorrow”, or “set bedtime 11pm”.',
+      text: 'I can reshape your day with concrete actions — protect peak hours, move overflow, insert breaks, split long blocks, or tune sleep. Tap an action card below.',
     },
   ]);
+  const [lastCoachChanges, setLastCoachChanges] = useState<CoachChange[]>([]);
 
   const peakStart = chronotype
     ? chronotypeDefaults(chronotype).peakStart
@@ -267,39 +270,181 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const applyCoachAction = (raw: string) => {
     const text = raw.toLowerCase();
+    const changes: CoachChange[] = [];
+    const pushChange = (label: string, detail: string) => {
+      changes.push({ id: `ch-${Date.now()}-${changes.length}`, label, detail });
+    };
 
     if (/bedtime|sleep|wake/.test(text)) {
-      const bedMatch = text.match(/bedtime\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
-      const wakeMatch = text.match(/wake\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
       const next = { ...sleep };
-      if (bedMatch) next.bedtime = normalizeSpokenTime(bedMatch);
-      if (wakeMatch) next.wakeTime = normalizeSpokenTime(wakeMatch);
-      if (!bedMatch && /bedtime|sleep/.test(text)) {
-        if (text.includes('11')) next.bedtime = '23:00';
-        if (text.includes('10')) next.bedtime = '22:00';
-        if (text.includes('12')) next.bedtime = '0:00';
-      }
+      if (text.includes('11')) next.bedtime = '23:00';
+      if (text.includes('10') && /bed/.test(text)) next.bedtime = '22:00';
+      if (text.includes('12')) next.bedtime = '0:00';
+      if (/wake early|wake 6/.test(text)) next.wakeTime = '6:00';
+      if (/wake 7/.test(text)) next.wakeTime = '7:00';
+      if (/wake 8/.test(text)) next.wakeTime = '8:00';
       setSleep(next);
-      return `Updated sleep schedule to wake ${next.wakeTime} / bedtime ${next.bedtime}. I can re-pack your day around this.`;
+      pushChange('Sleep updated', `Wake ${next.wakeTime} · Bed ${next.bedtime}`);
+      setLastCoachChanges(changes);
+      return `Updated sleep to wake ${next.wakeTime} / bedtime ${next.bedtime}.`;
     }
 
     if (/protect peak|peak window|deep work/.test(text)) {
-      setTasks((prev) => {
-        const day = prev.filter((t) => t.date === selectedDate);
-        const others = prev.filter((t) => t.date !== selectedDate);
-        const high = day.filter((t) => t.priority === 'high' || t.category === 'work');
-        const rest = day.filter((t) => !(t.priority === 'high' || t.category === 'work'));
-        return [...others, ...packDay([...high, ...rest], selectedDate, peakStart)];
-      });
-      return `Protected your peak window starting ${peakStart}. High-priority/work blocks are scheduled first.`;
+      const day = tasks.filter((t) => t.date === selectedDate);
+      const others = tasks.filter((t) => t.date !== selectedDate);
+      const high = day.filter((t) => t.priority === 'high' || t.category === 'work');
+      const rest = day.filter((t) => !(t.priority === 'high' || t.category === 'work'));
+      const packed = packDay([...high, ...rest], selectedDate, peakStart);
+      setTasks([...others, ...packed]);
+      pushChange(
+        'Peak protected',
+        `${high.length} focus blocks placed from ${peakStart}`
+      );
+      setLastCoachChanges(changes);
+      return `Protected your ${peakStart} peak window. High-priority/work blocks come first.`;
     }
 
-    if (/low priority|tomorrow|overflow|too much/.test(text)) {
+    if (/insert break|recovery|reset/.test(text)) {
+      const start = '15:30';
+      const breakTask: Task = {
+        id: `break-${Date.now()}`,
+        title: 'Recovery break',
+        date: selectedDate,
+        start,
+        end: addMinutesToTime(start, 20),
+        durationMinutes: 20,
+        category: 'health',
+        priority: 'medium',
+        icon: 'run',
+        order: tasksForSelectedDate.length,
+      };
+      const day = [...tasks.filter((t) => t.date === selectedDate), breakTask];
+      const others = tasks.filter((t) => t.date !== selectedDate);
+      setTasks([...others, ...packDay(day, selectedDate, peakStart)]);
+      pushChange('Break inserted', '20m recovery break added mid-afternoon');
+      setLastCoachChanges(changes);
+      return 'Inserted a 20-minute recovery break and re-packed the afternoon.';
+    }
+
+    if (/split/.test(text)) {
+      const day = tasks.filter((t) => t.date === selectedDate);
+      const longest = [...day].sort((a, b) => b.durationMinutes - a.durationMinutes)[0];
+      if (!longest || longest.durationMinutes < 60) {
+        return 'No long block to split (need 60m+). Add a longer task first.';
+      }
+      const half = Math.round(longest.durationMinutes / 2);
+      const partA: Task = {
+        ...longest,
+        title: `${longest.title} (1/2)`,
+        durationMinutes: half,
+        end: addMinutesToTime(longest.start, half),
+      };
+      const partB: Task = {
+        ...longest,
+        id: `${longest.id}-b`,
+        title: `${longest.title} (2/2)`,
+        durationMinutes: longest.durationMinutes - half,
+        start: addMinutesToTime(partA.end, 15),
+        end: addMinutesToTime(addMinutesToTime(partA.end, 15), longest.durationMinutes - half),
+        order: longest.order + 1,
+      };
+      const others = tasks.filter((t) => t.id !== longest.id);
+      const dayRest = day.filter((t) => t.id !== longest.id);
+      setTasks([
+        ...others.filter((t) => t.date !== selectedDate),
+        ...packDay([...dayRest, partA, partB], selectedDate, peakStart),
+      ]);
+      pushChange('Split long block', `${longest.title} → two ${formatDuration(half)} sessions`);
+      setLastCoachChanges(changes);
+      return `Split “${longest.title}” into two sessions with a buffer between them.`;
+    }
+
+    if (/clear evening|after 5|evening/.test(text)) {
+      const tomorrow = addDays(selectedDate, 1);
+      const movedTitles: string[] = [];
+      const nextTasks = tasks.map((task) => {
+        if (task.date !== selectedDate) return task;
+        if (timeToMinutes(task.start) >= timeToMinutes('17:00') && task.priority !== 'high') {
+          movedTitles.push(task.title);
+          return {
+            ...task,
+            date: tomorrow,
+            start: peakStart,
+            end: addMinutesToTime(peakStart, task.durationMinutes),
+          };
+        }
+        return task;
+      });
+      setTasks(nextTasks);
+      pushChange(
+        'Evening cleared',
+        movedTitles.length
+          ? `Moved: ${movedTitles.join(', ')}`
+          : 'Nothing after 5pm needed moving'
+      );
+      setLastCoachChanges(changes);
+      return movedTitles.length
+        ? `Cleared the evening by moving ${movedTitles.length} task(s) to tomorrow’s peak.`
+        : 'Evening already clear of low/medium tasks.';
+    }
+
+    if (/boost|raise priority|make .* high/.test(text)) {
+      const day = tasks.filter((t) => t.date === selectedDate);
+      const candidate =
+        day.find((t) => /react|code|exam|study/i.test(t.title)) ||
+        day.find((t) => t.priority !== 'high') ||
+        day[0];
+      if (!candidate) return 'No tasks today to boost.';
+      setTasks((prev) =>
+        prev.map((t) =>
+          t.id === candidate.id ? { ...t, priority: 'high' as Priority } : t
+        )
+      );
+      pushChange('Priority boosted', `${candidate.title} → HIGH`);
+      setLastCoachChanges(changes);
+      return `Boosted “${candidate.title}” to high priority.`;
+    }
+
+    if (/balance|mix categories|variety/.test(text)) {
+      const day = tasks.filter((t) => t.date === selectedDate);
+      const others = tasks.filter((t) => t.date !== selectedDate);
+      const sorted = [...day].sort((a, b) => {
+        if (a.category === b.category) return a.order - b.order;
+        return a.category.localeCompare(b.category);
+      });
+      // interleave categories roughly
+      const buckets: Record<string, Task[]> = {};
+      sorted.forEach((t) => {
+        buckets[t.category] = buckets[t.category] || [];
+        buckets[t.category].push(t);
+      });
+      const interleaved: Task[] = [];
+      let added = true;
+      while (added) {
+        added = false;
+        Object.keys(buckets).forEach((key) => {
+          const item = buckets[key].shift();
+          if (item) {
+            interleaved.push(item);
+            added = true;
+          }
+        });
+      }
+      setTasks([...others, ...packDay(interleaved, selectedDate, peakStart)]);
+      pushChange('Day balanced', 'Interleaved work / study / health / life blocks');
+      setLastCoachChanges(changes);
+      return 'Rebalanced the day so categories alternate instead of clustering.';
+    }
+
+    if (/low priority|tomorrow|overflow|too much|optimize/.test(text)) {
+      const before = tasks.filter((t) => t.date === selectedDate).map((t) => t.title);
       const summary = optimizeSchedule(selectedDate);
+      pushChange('Schedule optimized', summary);
+      setLastCoachChanges(changes);
       return summary;
     }
 
-    if (/prioritize|priority|focus on work/.test(text)) {
+    if (/prioritize|focus on work/.test(text)) {
       const updated = tasks.map((task) =>
         task.date === selectedDate && task.category === 'work'
           ? { ...task, priority: 'high' as Priority }
@@ -310,6 +455,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const day = updated.filter((t) => t.date === selectedDate);
       const others = updated.filter((t) => t.date !== selectedDate);
       setTasks([...others, ...packDay(day, selectedDate, peakStart)]);
+      pushChange('Work prioritized', 'Work → high, life admin → low, then re-packed');
+      setLastCoachChanges(changes);
       return 'Marked work as high priority and life admin as lower priority, then re-packed today.';
     }
 
@@ -323,26 +470,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           : /lunch|errand|call/.test(text)
             ? 'life'
             : 'work';
-      const start = peakStart;
       const newTask: Task = {
         id: `t-${Date.now()}`,
         title: title.slice(0, 48),
         date: selectedDate,
-        start,
-        end: addMinutesToTime(start, duration),
+        start: peakStart,
+        end: addMinutesToTime(peakStart, duration),
         durationMinutes: duration,
         category,
         priority: 'medium',
         icon: iconForCategory(category),
         order: tasksForSelectedDate.length,
       };
-      setTasks((prev) => [...prev, newTask]);
-      optimizeSchedule(selectedDate);
-      return `Added “${newTask.title}” (${formatDuration(duration)}) and fitted it into ${selectedDate}.`;
+      const day = [...tasks.filter((t) => t.date === selectedDate), newTask];
+      const others = tasks.filter((t) => t.date !== selectedDate);
+      setTasks([...others, ...packDay(day, selectedDate, peakStart)]);
+      pushChange('Task added', `${newTask.title} (${formatDuration(duration)})`);
+      setLastCoachChanges(changes);
+      return `Added “${newTask.title}” and fitted it into ${selectedDate}.`;
     }
 
     const summary = optimizeSchedule(selectedDate);
-    return `${summary} Tip: ask me to set bedtime, protect peak, prioritize work, or move low-priority tasks.`;
+    pushChange('Fallback optimize', summary);
+    setLastCoachChanges(changes);
+    return `${summary} Tip: try “insert break”, “split longest task”, “clear evening”, or “boost priority”.`;
   };
 
   const value = useMemo<AppContextValue>(
@@ -450,6 +601,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
       optimizeSchedule,
       coachMessages,
+      lastCoachChanges,
       sendCoachMessage: (text) => {
         const reply = applyCoachAction(text);
         setCoachMessages((prev) => [
@@ -470,6 +622,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       tasks,
       tasksForSelectedDate,
       coachMessages,
+      lastCoachChanges,
       capacitySummary,
       peakStart,
     ]
@@ -482,13 +635,4 @@ export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
   return ctx;
-}
-
-function normalizeSpokenTime(match: RegExpMatchArray) {
-  let hour = parseInt(match[1], 10);
-  const minute = match[2] ? parseInt(match[2], 10) : 0;
-  const meridiem = match[3];
-  if (meridiem === 'pm' && hour < 12) hour += 12;
-  if (meridiem === 'am' && hour === 12) hour = 0;
-  return `${hour}:${`${minute}`.padStart(2, '0')}`;
 }

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -15,20 +16,61 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
 
-const quickActions = [
-  'Protect peak window',
-  'Move low priority to tomorrow',
-  'Prioritize work today',
-  'Set bedtime 11pm',
+const actionCards = [
+  {
+    title: 'Protect peak',
+    prompt: 'Protect peak window',
+    detail: 'Put deep work first in your peak hours',
+    color: colors.work,
+    soft: colors.workSoft,
+  },
+  {
+    title: 'Move overflow',
+    prompt: 'Move low priority to tomorrow',
+    detail: 'Shift leftover tasks past bedtime',
+    color: colors.energy,
+    soft: colors.lifeSoft,
+  },
+  {
+    title: 'Insert break',
+    prompt: 'Insert recovery break',
+    detail: 'Add a 20m reset in the afternoon',
+    color: colors.health,
+    soft: colors.healthSoft,
+  },
+  {
+    title: 'Split longest',
+    prompt: 'Split longest task',
+    detail: 'Break a long block into two sessions',
+    color: colors.study,
+    soft: colors.studySoft,
+  },
+  {
+    title: 'Clear evening',
+    prompt: 'Clear evening after 5',
+    detail: 'Keep nights lighter',
+    color: colors.calendar,
+    soft: colors.calendarSoft,
+  },
+  {
+    title: 'Boost focus',
+    prompt: 'Boost priority of focus task',
+    detail: 'Raise a key task to HIGH',
+    color: colors.priorityHigh,
+    soft: colors.priorityHighSoft,
+  },
 ];
 
 export default function CoachScreen() {
+  const router = useRouter();
   const {
     coachMessages,
     sendCoachMessage,
+    lastCoachChanges,
     capacitySummary,
     sleep,
     peakWindowLabel,
+    tasksForSelectedDate,
   } = useApp();
   const [draft, setDraft] = useState('');
 
@@ -51,39 +93,72 @@ export default function CoachScreen() {
           <Text style={styles.title}>AI Coach</Text>
         </View>
         <Text style={styles.subtitle}>
-          Co-pilot that actually reshuffles tasks, priorities, and sleep.
+          Tap an action — I’ll change your schedule and show what moved.
         </Text>
-        <Text style={styles.meta}>
-          {peakWindowLabel} · wake {sleep.wakeTime} / bed {sleep.bedtime} · focus{' '}
-          {capacitySummary.focusHours}h / {capacitySummary.capacityHours}h
-        </Text>
+        <View style={styles.metaRow}>
+          <View style={[styles.metaChip, { backgroundColor: colors.todaySoft }]}>
+            <Text style={styles.metaText}>{peakWindowLabel}</Text>
+          </View>
+          <View style={[styles.metaChip, { backgroundColor: colors.lifeSoft }]}>
+            <Text style={styles.metaText}>
+              {sleep.wakeTime}–{sleep.bedtime}
+            </Text>
+          </View>
+          <View style={[styles.metaChip, { backgroundColor: colors.coachSoft }]}>
+            <Text style={styles.metaText}>
+              {capacitySummary.focusHours}h / {capacitySummary.capacityHours}h
+            </Text>
+          </View>
+        </View>
       </View>
 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.quickRow}
+        contentContainerStyle={styles.actionRow}
       >
-        {quickActions.map((action) => (
+        {actionCards.map((action) => (
           <Pressable
-            key={action}
-            onPress={() => submit(action)}
-            style={styles.quickChip}
+            key={action.title}
+            onPress={() => submit(action.prompt)}
+            style={[styles.actionCard, { backgroundColor: action.soft, borderColor: action.color }]}
           >
-            <Text style={styles.quickText}>{action}</Text>
+            <Text style={[styles.actionTitle, { color: action.color }]}>{action.title}</Text>
+            <Text style={styles.actionDetail}>{action.detail}</Text>
           </Pressable>
         ))}
       </ScrollView>
+
+      {lastCoachChanges.length > 0 ? (
+        <View style={styles.changesBox}>
+          <Text style={styles.changesTitle}>Latest changes</Text>
+          {lastCoachChanges.map((change) => (
+            <View key={change.id} style={styles.changeRow}>
+              <View style={styles.changeDot} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.changeLabel}>{change.label}</Text>
+                <Text style={styles.changeDetail}>{change.detail}</Text>
+              </View>
+            </View>
+          ))}
+          <Pressable onPress={() => router.push('/(tabs)')}>
+            <Text style={styles.viewDay}>View Today →</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <ScrollView
         style={styles.flex}
         contentContainerStyle={styles.messages}
         showsVerticalScrollIndicator={false}
       >
+        <Text style={styles.nowTitle}>
+          Today · {tasksForSelectedDate.length} tasks
+        </Text>
         {coachMessages.map((message, index) => (
           <Animated.View
             key={message.id}
-            entering={FadeInUp.delay(index * 40)}
+            entering={FadeInUp.delay(index * 30)}
             style={[
               styles.bubble,
               message.role === 'user' ? styles.userBubble : styles.aiBubble,
@@ -101,11 +176,10 @@ export default function CoachScreen() {
         ))}
 
         {capacitySummary.overflowHours > 0 ? (
-          <Animated.View entering={FadeInDown.delay(120)} style={styles.alert}>
+          <Animated.View entering={FadeInDown.delay(80)} style={styles.alert}>
             <Ionicons name="warning" size={18} color={colors.energy} />
             <Text style={styles.alertText}>
-              Capacity alert: {capacitySummary.overflowHours}h overflow before
-              bedtime. Ask me to move low-priority work.
+              {capacitySummary.overflowHours}h over capacity — try Move overflow or Clear evening.
             </Text>
           </Animated.View>
         ) : null}
@@ -115,7 +189,7 @@ export default function CoachScreen() {
         <TextInput
           value={draft}
           onChangeText={setDraft}
-          placeholder="Ask Kairos to reshape your day…"
+          placeholder="Or type: set bedtime 11pm, add 45m gym…"
           placeholderTextColor={colors.inkMuted}
           style={styles.input}
           onSubmitEditing={() => submit()}
@@ -136,27 +210,56 @@ export default function CoachScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  header: { marginBottom: 10, gap: 2 },
+  header: { marginBottom: 10, gap: 4 },
   brand: { fontFamily: fonts.brandItalic, fontSize: 24, color: colors.ink },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   title: { fontFamily: fonts.bold, fontSize: 28, color: colors.ink },
-  subtitle: { fontFamily: fonts.body, fontSize: 14, color: colors.inkMuted },
-  meta: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.inkSoft,
-    marginTop: 4,
-  },
-  quickRow: { gap: 8, paddingBottom: 10 },
-  quickChip: {
+  subtitle: { fontFamily: fonts.body, fontSize: 14, color: colors.inkMuted, lineHeight: 20 },
+  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  metaChip: {
     borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.bgElevated,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
-  quickText: { fontFamily: fonts.medium, fontSize: 12, color: colors.ink },
+  metaText: { fontFamily: fonts.semibold, fontSize: 11, color: colors.ink },
+  actionRow: { gap: 10, paddingBottom: 12 },
+  actionCard: {
+    width: 150,
+    borderRadius: radii.lg,
+    borderWidth: 1.5,
+    padding: 12,
+    gap: 6,
+  },
+  actionTitle: { fontFamily: fonts.bold, fontSize: 14 },
+  actionDetail: { fontFamily: fonts.body, fontSize: 12, color: colors.inkSoft, lineHeight: 16 },
+  changesBox: {
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.coach,
+    backgroundColor: colors.coachSoft,
+    padding: 12,
+    gap: 8,
+    marginBottom: 10,
+  },
+  changesTitle: { fontFamily: fonts.bold, fontSize: 12, color: colors.coach, letterSpacing: 0.6 },
+  changeRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  changeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.coach,
+    marginTop: 5,
+  },
+  changeLabel: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 13 },
+  changeDetail: { fontFamily: fonts.body, color: colors.inkSoft, fontSize: 12 },
+  viewDay: { fontFamily: fonts.semibold, color: colors.coach, marginTop: 4 },
+  nowTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    color: colors.inkMuted,
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
   messages: { gap: 12, paddingBottom: 12 },
   bubble: {
     borderRadius: radii.lg,
@@ -168,7 +271,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     backgroundColor: colors.coachSoft,
     borderWidth: 1,
-    borderColor: 'rgba(47, 111, 237, 0.25)',
+    borderColor: 'rgba(37, 99, 235, 0.3)',
   },
   userBubble: {
     alignSelf: 'flex-end',

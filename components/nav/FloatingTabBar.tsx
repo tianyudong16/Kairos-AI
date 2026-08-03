@@ -5,26 +5,35 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, fonts, radii } from '@/constants/theme';
 
+/** Simpler IA: Today · Calendar · Add · Coach (Insights/Settings live inside pages) */
 const items = [
-  { key: 'home', label: 'Home', icon: 'home-outline' as const, href: '/(tabs)' },
+  {
+    key: 'home',
+    label: 'Today',
+    icon: 'sunny-outline' as const,
+    href: '/(tabs)',
+    activeColor: colors.today,
+  },
   {
     key: 'calendar',
     label: 'Calendar',
     icon: 'calendar-outline' as const,
     href: '/(tabs)/calendar',
+    activeColor: colors.calendar,
   },
-  { key: 'add', label: 'Add', icon: 'add' as const, href: '/ai-input', fab: true },
   {
-    key: 'analytics',
-    label: 'Insights',
-    icon: 'bar-chart-outline' as const,
-    href: '/(tabs)/analytics',
+    key: 'add',
+    label: 'Add',
+    icon: 'add' as const,
+    href: '/ai-input',
+    fab: true,
   },
   {
     key: 'coach',
     label: 'Coach',
     icon: 'flash-outline' as const,
     href: '/(tabs)/coach',
+    activeColor: colors.coach,
   },
 ];
 
@@ -54,7 +63,7 @@ export function FloatingTabBar() {
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       <View style={styles.bar}>
         {items.map((item) => {
-          if (item.fab) {
+          if ('fab' in item && item.fab) {
             return (
               <Pressable
                 key={item.key}
@@ -69,6 +78,7 @@ export function FloatingTabBar() {
           }
 
           const active = isActive(item.key);
+          const activeColor = item.activeColor || colors.ink;
           return (
             <Pressable
               key={item.key}
@@ -76,14 +86,23 @@ export function FloatingTabBar() {
               accessibilityLabel={item.label}
               accessibilityState={active ? { selected: true } : {}}
               onPress={() => router.push(item.href as any)}
-              style={({ pressed }) => [styles.tab, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.tab,
+                active && { backgroundColor: `${activeColor}18` },
+                pressed && styles.pressed,
+              ]}
             >
               <Ionicons
                 name={item.icon}
                 size={22}
-                color={active ? colors.ink : colors.inkMuted}
+                color={active ? activeColor : colors.inkMuted}
               />
-              <Text style={[styles.label, active && styles.labelActive]}>
+              <Text
+                style={[
+                  styles.label,
+                  active && { color: activeColor, fontFamily: fonts.semibold },
+                ]}
+              >
                 {item.label}
               </Text>
             </Pressable>
@@ -105,12 +124,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bgElevated,
     borderWidth: 1,
     borderColor: colors.lineStrong,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 2,
+    gap: 4,
     ...Platform.select({
       web: { boxShadow: '0 8px 20px rgba(28, 26, 23, 0.08)' },
       default: {
@@ -123,26 +142,27 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    minWidth: 56,
+    minWidth: 64,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 2,
-    paddingVertical: 4,
+    paddingVertical: 8,
+    borderRadius: radii.md,
     ...Platform.select({
       web: { cursor: 'pointer' } as object,
       default: {},
     }),
   },
   fab: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: colors.black,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 4,
+    marginHorizontal: 6,
     borderWidth: 3,
-    borderColor: colors.bg,
+    borderColor: colors.energy,
     zIndex: 2,
     ...Platform.select({
       web: {
@@ -160,12 +180,8 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: fonts.medium,
-    fontSize: 10,
+    fontSize: 11,
     color: colors.inkMuted,
-  },
-  labelActive: {
-    color: colors.ink,
-    fontFamily: fonts.semibold,
   },
   pressed: {
     opacity: 0.85,
