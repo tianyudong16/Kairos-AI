@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 
+import { CategoryEditModal } from '@/components/ui/CategoryEditModal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
@@ -24,6 +25,7 @@ export default function SettingsScreen() {
     setChronotype,
     optimizeSchedule,
     selectedDate,
+    categories,
   } = useApp();
 
   const wakeIsPreset = useMemo(
@@ -41,6 +43,8 @@ export default function SettingsScreen() {
   const [bedDraft, setBedDraft] = useState(sleep.bedtime);
   const [wakeError, setWakeError] = useState<string | null>(null);
   const [bedError, setBedError] = useState<string | null>(null);
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
 
   return (
     <ScrollView
@@ -51,7 +55,7 @@ export default function SettingsScreen() {
       <Text style={styles.brand}>Kairos AI</Text>
       <Text style={styles.title}>Settings</Text>
       <Text style={styles.subtitle}>
-        Personalize sleep and chronotype — schedule adapts around your capacity.
+        Personalize sleep, chronotype, and categories — schedule adapts around your capacity.
       </Text>
 
       <Text style={styles.section}>Chronotype</Text>
@@ -198,9 +202,62 @@ export default function SettingsScreen() {
         </Text>
       </View>
 
+      <View style={styles.sectionRow}>
+        <Text style={[styles.section, styles.sectionInline]}>Categories</Text>
+        <Pressable
+          onPress={() => {
+            setEditingCategoryId(null);
+            setCategoryModalOpen(true);
+          }}
+        >
+          <Text style={styles.editLink}>Edit</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.catHint}>
+        Add custom categories or change colors. Tap a chip to edit it.
+      </Text>
+      <View style={styles.chipRow}>
+        {categories.map((cat) => (
+          <Pressable
+            key={cat.id}
+            onPress={() => {
+              setEditingCategoryId(cat.id);
+              setCategoryModalOpen(true);
+            }}
+            style={[
+              styles.catChip,
+              { backgroundColor: cat.soft, borderColor: cat.color },
+            ]}
+          >
+            <View style={[styles.catDot, { backgroundColor: cat.color }]} />
+            <Text style={[styles.catChipText, { color: cat.color }]}>
+              {cat.label}
+            </Text>
+          </Pressable>
+        ))}
+        <Pressable
+          onPress={() => {
+            setEditingCategoryId(null);
+            setCategoryModalOpen(true);
+          }}
+          style={styles.addCatChip}
+        >
+          <Text style={styles.addCatText}>+ Add</Text>
+        </Pressable>
+      </View>
+
       <PrimaryButton
         label="Re-pack selected day around sleep"
         onPress={() => optimizeSchedule(selectedDate)}
+      />
+
+      <CategoryEditModal
+        visible={categoryModalOpen}
+        onClose={() => {
+          setCategoryModalOpen(false);
+          setEditingCategoryId(null);
+        }}
+        initialCategoryId={editingCategoryId}
       />
     </ScrollView>
   );
@@ -216,6 +273,60 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.ink,
     marginTop: 8,
+  },
+  sectionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 8,
+  },
+  sectionInline: {
+    marginTop: 0,
+  },
+  editLink: {
+    fontFamily: fonts.semibold,
+    fontSize: 13,
+    color: colors.energy,
+  },
+  catHint: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.inkMuted,
+    lineHeight: 18,
+    marginTop: -4,
+  },
+  catChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  catDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  catChipText: {
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    letterSpacing: 0.4,
+  },
+  addCatChip: {
+    borderRadius: radii.pill,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.lineStrong,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colors.bgElevated,
+  },
+  addCatText: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.inkSoft,
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: {

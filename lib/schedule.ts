@@ -1,4 +1,4 @@
-export type Category = 'work' | 'study' | 'health' | 'life';
+export type Category = string;
 
 export type Priority = 'high' | 'medium' | 'low';
 
@@ -9,6 +9,14 @@ export type Chronotype =
   | 'night-owl';
 
 export type TaskIcon = 'run' | 'code' | 'people' | 'food' | 'mail' | 'book';
+
+export type CategoryDef = {
+  id: string;
+  label: string;
+  color: string;
+  soft: string;
+  builtIn?: boolean;
+};
 
 export type Task = {
   id: string;
@@ -36,6 +44,36 @@ export type SleepSchedule = {
   bedtime: string;
   wakeTime: string;
 };
+
+/** Mix a hex color toward white for soft backgrounds */
+export function softFromColor(hex: string, amount = 0.82): string {
+  const cleaned = hex.replace('#', '');
+  if (cleaned.length !== 6) return '#F3F0E8';
+  const r = parseInt(cleaned.slice(0, 2), 16);
+  const g = parseInt(cleaned.slice(2, 4), 16);
+  const b = parseInt(cleaned.slice(4, 6), 16);
+  const mix = (channel: number) =>
+    Math.round(channel + (255 - channel) * amount)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${mix(r)}${mix(g)}${mix(b)}`;
+}
+
+export const CATEGORY_COLOR_PRESETS = [
+  '#5B4FE8',
+  '#1F7FBF',
+  '#2F9A5B',
+  '#D97706',
+  '#E11D48',
+  '#0F766E',
+  '#7C3AED',
+  '#DB2777',
+  '#0891B2',
+  '#65A30D',
+  '#EA580C',
+  '#4F46E5',
+];
+
 
 export function toDateKey(date: Date) {
   const y = date.getFullYear();
@@ -125,7 +163,8 @@ export function iconForCategory(category: Category): TaskIcon {
   if (category === 'health') return 'run';
   if (category === 'life') return 'food';
   if (category === 'study') return 'book';
-  return 'code';
+  if (category === 'work') return 'code';
+  return 'book';
 }
 
 export function chronotypeDefaults(chronotype: Chronotype): {

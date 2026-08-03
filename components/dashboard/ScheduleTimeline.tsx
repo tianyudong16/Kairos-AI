@@ -4,7 +4,8 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { PriorityTag } from '@/components/ui/PriorityTag';
 import type { Priority, Task } from '@/context/AppContext';
-import { categoryMeta, colors, fonts, radii } from '@/constants/theme';
+import { useApp } from '@/context/AppContext';
+import { colors, fonts, radii } from '@/constants/theme';
 
 const iconMap = {
   run: 'walk-outline',
@@ -30,6 +31,7 @@ export function ScheduleTimeline({
   onDelete,
   onPriority,
 }: Props) {
+  const { getCategory } = useApp();
   return (
     <View style={styles.wrap}>
       {tasks.length === 0 ? (
@@ -39,7 +41,7 @@ export function ScheduleTimeline({
         </View>
       ) : null}
       {tasks.map((task, index) => {
-        const meta = categoryMeta[task.category];
+        const meta = getCategory(task.category);
         return (
           <Animated.View
             key={task.id}

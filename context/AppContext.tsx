@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 
-import type { Category } from '@/constants/theme';
+import { colors } from '@/constants/theme';
 import {
   addDays,
   addMinutesToTime,
+  Category,
+  CategoryDef,
   chronotypeDefaults,
   Chronotype,
   DraftTask,
@@ -13,12 +15,13 @@ import {
   parseDuration,
   Priority,
   SleepSchedule,
+  softFromColor,
   Task,
   timeToMinutes,
   toDateKey,
 } from '@/lib/schedule';
 
-export type { Chronotype, DraftTask, Priority, SleepSchedule, Task };
+export type { Category, CategoryDef, Chronotype, DraftTask, Priority, SleepSchedule, Task };
 
 type CoachMessage = { id: string; role: 'ai' | 'user'; text: string };
 type CoachChange = { id: string; label: string; detail: string };
@@ -32,6 +35,11 @@ type AppContextValue = {
   completeOnboarding: () => void;
   selectedDate: string;
   setSelectedDate: (date: string) => void;
+  categories: CategoryDef[];
+  getCategory: (id: string) => CategoryDef;
+  addCategory: (input: { label: string; color: string }) => CategoryDef;
+  updateCategory: (id: string, patch: Partial<Pick<CategoryDef, 'label' | 'color'>>) => void;
+  deleteCategory: (id: string) => void;
   tasks: Task[];
   tasksForSelectedDate: Task[];
   addTask: (input: {
@@ -54,6 +62,45 @@ type AppContextValue = {
   applyCoachAction: (action: string) => string;
   peakWindowLabel: string;
   capacitySummary: { focusHours: number; capacityHours: number; overflowHours: number };
+};
+
+const DEFAULT_CATEGORIES: CategoryDef[] = [
+  {
+    id: 'work',
+    label: 'WORK',
+    color: colors.work,
+    soft: colors.workSoft,
+    builtIn: true,
+  },
+  {
+    id: 'study',
+    label: 'STUDY',
+    color: colors.study,
+    soft: colors.studySoft,
+    builtIn: true,
+  },
+  {
+    id: 'health',
+    label: 'HEALTH',
+    color: colors.health,
+    soft: colors.healthSoft,
+    builtIn: true,
+  },
+  {
+    id: 'life',
+    label: 'LIFE',
+    color: colors.life,
+    soft: colors.lifeSoft,
+    builtIn: true,
+  },
+];
+
+const fallbackCategory: CategoryDef = {
+  id: 'life',
+  label: 'LIFE',
+  color: colors.life,
+  soft: colors.lifeSoft,
+  builtIn: true,
 };
 
 const todayKey = toDateKey(new Date());
@@ -166,6 +213,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [sleep, setSleep] = useState<SleepSchedule>(defaults.sleep);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
   const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([
     {
       id: 'c1',
@@ -174,6 +222,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
   ]);
   const [lastCoachChanges, setLastCoachChanges] = useState<CoachChange[]>([]);
+
+  const getCategory = (id: string) =>
+    categories.find((c) => c.id === id) ||
+    categories[0] ||
+    fallbackCategory;
 
   const peakStart = chronotype
     ? chronotypeDefaults(chronotype).peakStart
@@ -509,6 +562,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       completeOnboarding: () => setOnboarded(true),
       selectedDate,
       setSelectedDate,
+      categories,
+      getCategory,
+      addCategory: ({ label, color }) => {
+        const id = `cat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const next: CategoryDef = {
+          id,
+          label: label.trim().toUpperCase() || 'CUSTOM',
+          color,
+          soft: softFromColor(color),
+          builtIn: false,
+        };
+        setCategories((prev) => [...prev, next]);
+        return next;
+      },
+      updateCategory: (id, patch) => {
+        setCategories((prev) =>
+          prev.map((cat) => {
+            if (cat.id !== id) return cat;
+            const color = patch.color ?? cat.color;
+            const label = patch.label !== undefined
+              ? patch.label.trim().toUpperCase() || cat.label
+              : cat.label;
+            return {
+              ...cat,
+              label,
+              color,
+              soft: softFromColor(color),
+            };
+          })
+        );
+      },
+      deleteCategory: (id) => {
+        setCategories((prev) => {
+          if (prev.length <= 1) return prev;
+          const target = prev.find((c) => c.id === id);
+          if (!target || target.builtIn) return prev;
+          const remaining = prev.filter((c) => c.id !== id);
+          const fallbackId = remaining[0]?.id || 'life';
+          setTasks((tasksPrev) =>
+            tasksPrev.map((task) =>
+              task.category === id ? { ...task, category: fallbackId } : task
+            )
+          );
+          return remaining;
+        });
+      },
       tasks,
       tasksForSelectedDate,
       addTask: ({ title, date = selectedDate, durationMinutes, category, priority = 'medium', start }) => {
@@ -619,6 +718,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       chronotype,
       sleep,
       selectedDate,
+      categories,
       tasks,
       tasksForSelectedDate,
       coachMessages,

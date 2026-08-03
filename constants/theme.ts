@@ -9,7 +9,7 @@ export const colors = {
   white: '#FFFFFF',
   black: '#12100E',
 
-  // Stronger category accents for scanning
+  // Default category accents (also seeded in AppContext)
   work: '#5B4FE8',
   workSoft: '#DDD8FF',
   study: '#1F7FBF',
@@ -38,12 +38,16 @@ export const colors = {
   todaySoft: '#CCFBF1',
 };
 
-export const categoryMeta = {
+/** Fallback defaults — prefer useApp().getCategory() */
+export const categoryMeta: Record<
+  string,
+  { label: string; color: string; soft: string }
+> = {
   work: { label: 'WORK', color: colors.work, soft: colors.workSoft },
   study: { label: 'STUDY', color: colors.study, soft: colors.studySoft },
   health: { label: 'HEALTH', color: colors.health, soft: colors.healthSoft },
   life: { label: 'LIFE', color: colors.life, soft: colors.lifeSoft },
-} as const;
+};
 
 export const priorityMeta = {
   high: {
@@ -63,7 +67,7 @@ export const priorityMeta = {
   },
 } as const;
 
-export type Category = keyof typeof categoryMeta;
+export type Category = string;
 export type PriorityTone = keyof typeof priorityMeta;
 
 export const spacing = {

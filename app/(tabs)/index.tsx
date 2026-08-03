@@ -7,7 +7,7 @@ import { ScheduleTimeline } from '@/components/dashboard/ScheduleTimeline';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import { addDays, formatDisplayDate } from '@/lib/schedule';
-import { categoryMeta, colors, fonts, radii } from '@/constants/theme';
+import { colors, fonts, radii } from '@/constants/theme';
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -19,6 +19,7 @@ export default function DashboardScreen() {
     sleep,
     peakWindowLabel,
     capacitySummary,
+    categories,
     reorderTask,
     deleteTask,
     updateTask,
@@ -103,14 +104,14 @@ export default function DashboardScreen() {
       </View>
 
       <View style={styles.legend}>
-        {(['work', 'study', 'health', 'life'] as const).map((key) => (
+        {categories.map((cat) => (
           <View
-            key={key}
-            style={[styles.legendItem, { backgroundColor: categoryMeta[key].soft }]}
+            key={cat.id}
+            style={[styles.legendItem, { backgroundColor: cat.soft }]}
           >
-            <View style={[styles.legendDot, { backgroundColor: categoryMeta[key].color }]} />
-            <Text style={[styles.legendText, { color: categoryMeta[key].color }]}>
-              {categoryMeta[key].label}
+            <View style={[styles.legendDot, { backgroundColor: cat.color }]} />
+            <Text style={[styles.legendText, { color: cat.color }]}>
+              {cat.label}
             </Text>
           </View>
         ))}

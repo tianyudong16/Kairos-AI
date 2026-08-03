@@ -1,9 +1,11 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { categoryMeta, Category, fonts, radii } from '@/constants/theme';
+import { useApp } from '@/context/AppContext';
+import { fonts, radii } from '@/constants/theme';
 
-export function CategoryTag({ category }: { category: Category }) {
-  const meta = categoryMeta[category];
+export function CategoryTag({ category }: { category: string }) {
+  const { getCategory } = useApp();
+  const meta = getCategory(category);
   return (
     <View style={[styles.tag, { backgroundColor: meta.color }]}>
       <Text style={styles.label}>{meta.label}</Text>

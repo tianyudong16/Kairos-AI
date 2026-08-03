@@ -12,21 +12,22 @@ import {
 } from 'react-native';
 
 import { AppShell } from '@/components/ui/AppShell';
+import { CategoryEditModal } from '@/components/ui/CategoryEditModal';
 import { CategoryTag } from '@/components/ui/CategoryTag';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { PriorityTag } from '@/components/ui/PriorityTag';
-import { DraftTask, Priority, useApp } from '@/context/AppContext';
-import { Category, categoryMeta, colors, fonts, radii } from '@/constants/theme';
+import { Category, DraftTask, Priority, useApp } from '@/context/AppContext';
+import { colors, fonts, radii } from '@/constants/theme';
 import { formatDuration, parseDuration } from '@/lib/schedule';
 
 type Mode = 'ai' | 'manual';
 
-const categories = Object.keys(categoryMeta) as Category[];
-
 export default function AiInputScreen() {
   const router = useRouter();
-  const { addDraftTasks, selectedDate } = useApp();
+  const { addDraftTasks, selectedDate, categories, getCategory } = useApp();
   const [mode, setMode] = useState<Mode>('manual');
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState(
     'I need 2h to code React, 45min cardio before 5pm, and lunch at noon...'
   );
@@ -52,6 +53,7 @@ export default function AiInputScreen() {
   const [category, setCategory] = useState<Category>('work');
   const [priority, setPriority] = useState<Priority>('high');
 
+  const categoryIds = categories.map((c) => c.id);
   const parsePrompt = () => {
     const chunks = prompt
       .split(/,| and /i)
@@ -124,8 +126,8 @@ export default function AiInputScreen() {
     setDrafts((prev) =>
       prev.map((draft) => {
         if (draft.id !== id) return draft;
-        const idx = categories.indexOf(draft.category);
-        const next = categories[(idx + 1) % categories.length];
+        const idx = categoryIds.indexOf(draft.category);
+        const next = categoryIds[(idx + 1) % categoryIds.length] || categoryIds[0];
         return { ...draft, category: next };
       })
     );
@@ -210,20 +212,32 @@ export default function AiInputScreen() {
               placeholderTextColor={colors.inkMuted}
               style={styles.singleInput}
             />
-            <Text style={styles.fieldLabel}>Category</Text>
+            <View style={styles.fieldRow}>
+              <Text style={styles.fieldLabel}>Category</Text>
+              <Pressable
+                onPress={() => {
+                  setEditingCategoryId(null);
+                  setCategoryModalOpen(true);
+                }}
+              >
+                <Text style={styles.manageLink}>Manage</Text>
+              </Pressable>
+            </View>
             <View style={styles.chipRow}>
-              {categories.map((value) => (
+              {categories.map((cat) => (
                 <Pressable
-                  key={value}
-                  onPress={() => setCategory(value)}
+                  key={cat.id}
+                  onPress={() => setCategory(cat.id)}
+                  onLongPress={() => {
+                    setEditingCategoryId(cat.id);
+                    setCategoryModalOpen(true);
+                  }}
                   style={[
                     styles.miniChip,
                     {
                       backgroundColor:
-                        category === value
-                          ? categoryMeta[value].color
-                          : categoryMeta[value].soft,
-                      borderColor: categoryMeta[value].color,
+                        category === cat.id ? cat.color : cat.soft,
+                      borderColor: cat.color,
                     },
                   ]}
                 >
@@ -231,12 +245,11 @@ export default function AiInputScreen() {
                     style={[
                       styles.miniChipText,
                       {
-                        color:
-                          category === value ? colors.white : categoryMeta[value].color,
+                        color: category === cat.id ? colors.white : cat.color,
                       },
                     ]}
                   >
-                    {value}
+                    {cat.label}
                   </Text>
                 </Pressable>
               ))}
@@ -257,14 +270,16 @@ export default function AiInputScreen() {
             </Text>
           ) : null}
 
-          {drafts.map((task, index) => (
+          {drafts.map((task, index) => {
+            const catMeta = getCategory(task.category);
+            return (
             <View
               key={task.id}
               style={[
                 styles.parsedCard,
                 {
-                  backgroundColor: categoryMeta[task.category].soft,
-                  borderColor: categoryMeta[task.category].color,
+                  backgroundColor: catMeta.soft,
+                  borderColor: catMeta.color,
                 },
               ]}
             >
@@ -340,10 +355,14 @@ export default function AiInputScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Cycle category"
                   onPress={() => cycleCategory(task.id)}
+                  onLongPress={() => {
+                    setEditingCategoryId(task.category);
+                    setCategoryModalOpen(true);
+                  }}
                 >
                   <CategoryTag category={task.category} />
                 </Pressable>
-                <Text style={styles.tapHint}>tap tag to change category</Text>
+                <Text style={styles.tapHint}>tap to cycle · hold to edit</Text>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Delete task"
@@ -356,7 +375,8 @@ export default function AiInputScreen() {
                 </Pressable>
               </View>
             </View>
-          ))}
+          );
+          })}
         </View>
       </ScrollView>
 
@@ -370,6 +390,16 @@ export default function AiInputScreen() {
           addDraftTasks(drafts, selectedDate);
           router.replace('/(tabs)');
         }}
+      />
+
+      <CategoryEditModal
+        visible={categoryModalOpen}
+        onClose={() => {
+          setCategoryModalOpen(false);
+          setEditingCategoryId(null);
+        }}
+        initialCategoryId={editingCategoryId}
+        onSelectCategory={(id) => setCategory(id)}
       />
     </AppShell>
   );
@@ -453,11 +483,21 @@ const styles = StyleSheet.create({
     fontFamily: fonts.body,
     color: colors.ink,
   },
+  fieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   fieldLabel: {
     fontFamily: fonts.semibold,
     fontSize: 12,
     color: colors.inkSoft,
     marginTop: 2,
+  },
+  manageLink: {
+    fontFamily: fonts.semibold,
+    fontSize: 12,
+    color: colors.energy,
   },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   miniChip: {
