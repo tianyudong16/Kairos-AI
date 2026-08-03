@@ -68,13 +68,13 @@ async function main() {
   await page.goto(`${base}/settings`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(700);
   await check(results, 'settings categories', (await page.getByText('Categories').count()) > 0);
-  await page.getByText('Edit').click();
+  await page.getByText('Edit', { exact: true }).click();
   await page.waitForTimeout(400);
   await check(results, 'category modal', (await page.getByText('Add category').count()) > 0);
   await page.getByText('Add category').click();
   await page.waitForTimeout(300);
   await page.getByPlaceholder(/Creative|Errands|Family/i).fill('Creative');
-  await page.getByText('Create').click();
+  await page.getByText('Create', { exact: true }).click();
   await page.waitForTimeout(400);
   await check(results, 'custom category', (await page.getByText('CREATIVE').count()) > 0);
 
