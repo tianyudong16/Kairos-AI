@@ -76,6 +76,31 @@ export function minutesToTime(total: number) {
   return `${h}:${`${m}`.padStart(2, '0')}`;
 }
 
+/** Accepts 7:30, 07:30, 7:30am, 11pm, 23:00 → H:MM */
+export function normalizeTimeInput(raw: string): string | null {
+  const cleaned = raw.trim().toLowerCase().replace(/\s+/g, '');
+  if (!cleaned) return null;
+
+  const match = cleaned.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!match) return null;
+
+  let hour = parseInt(match[1], 10);
+  const minute = match[2] ? parseInt(match[2], 10) : 0;
+  const meridiem = match[3];
+
+  if (Number.isNaN(hour) || Number.isNaN(minute) || minute > 59) return null;
+
+  if (meridiem) {
+    if (hour < 1 || hour > 12) return null;
+    if (meridiem === 'pm' && hour < 12) hour += 12;
+    if (meridiem === 'am' && hour === 12) hour = 0;
+  } else if (hour > 23) {
+    return null;
+  }
+
+  return `${hour}:${`${minute}`.padStart(2, '0')}`;
+}
+
 export function addMinutesToTime(time: string, minutes: number) {
   return minutesToTime(timeToMinutes(time) + minutes);
 }
