@@ -1,11 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { PriorityTag } from '@/components/ui/PriorityTag';
 import type { Priority, Task } from '@/context/AppContext';
 import { useApp } from '@/context/AppContext';
-import { colors, fonts, radii } from '@/constants/theme';
+import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 
 const iconMap = {
   run: 'walk-outline',
@@ -32,6 +32,80 @@ export function ScheduleTimeline({
   onPriority,
 }: Props) {
   const { getCategory } = useApp();
+  const { colors } = useTheme();
+  const styles = useThemedStyles((c) => ({
+    wrap: { gap: 12 },
+    empty: {
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: c.line,
+      backgroundColor: c.bgElevated,
+      padding: 16,
+      gap: 4,
+    },
+    emptyTitle: { fontFamily: fonts.semibold, color: c.ink },
+    emptyBody: { fontFamily: fonts.body, color: c.inkMuted, fontSize: 13 },
+    row: { flexDirection: 'row' as const, gap: 12, alignItems: 'stretch' as const },
+    timeCol: { width: 48, alignItems: 'center' as const },
+    time: {
+      fontFamily: fonts.medium,
+      fontSize: 12,
+      color: c.inkMuted,
+      marginBottom: 6,
+    },
+    rail: { width: 3, flex: 1, borderRadius: 2, opacity: 0.7 },
+    card: {
+      flex: 1,
+      borderRadius: radii.md,
+      overflow: 'hidden' as const,
+      flexDirection: 'row' as const,
+      minHeight: 64,
+      borderWidth: 1,
+    },
+    accent: { width: 6 },
+    cardBody: {
+      flex: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      justifyContent: 'center' as const,
+      gap: 6,
+    },
+    titleRow: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 8 },
+    title: {
+      fontFamily: fonts.semibold,
+      fontSize: 15,
+      color: c.ink,
+      flex: 1,
+    },
+    catPill: {
+      borderRadius: radii.pill,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+    },
+    catText: {
+      color: c.white,
+      fontFamily: fonts.bold,
+      fontSize: 10,
+      letterSpacing: 0.4,
+    },
+    meta: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: c.inkSoft,
+    },
+    actions: { flexDirection: 'row' as const, gap: 8, marginTop: 2 },
+    actionBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      backgroundColor: c.bgElevated,
+      borderWidth: 1,
+      borderColor: c.line,
+    },
+  }));
+
   return (
     <View style={styles.wrap}>
       {tasks.length === 0 ? (
@@ -121,76 +195,3 @@ export function ScheduleTimeline({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: { gap: 12 },
-  empty: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.bgElevated,
-    padding: 16,
-    gap: 4,
-  },
-  emptyTitle: { fontFamily: fonts.semibold, color: colors.ink },
-  emptyBody: { fontFamily: fonts.body, color: colors.inkMuted, fontSize: 13 },
-  row: { flexDirection: 'row', gap: 12, alignItems: 'stretch' },
-  timeCol: { width: 48, alignItems: 'center' },
-  time: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.inkMuted,
-    marginBottom: 6,
-  },
-  rail: { width: 3, flex: 1, borderRadius: 2, opacity: 0.7 },
-  card: {
-    flex: 1,
-    borderRadius: radii.md,
-    overflow: 'hidden',
-    flexDirection: 'row',
-    minHeight: 64,
-    borderWidth: 1,
-  },
-  accent: { width: 6 },
-  cardBody: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    justifyContent: 'center',
-    gap: 6,
-  },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: {
-    fontFamily: fonts.semibold,
-    fontSize: 15,
-    color: colors.ink,
-    flex: 1,
-  },
-  catPill: {
-    borderRadius: radii.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  catText: {
-    color: colors.white,
-    fontFamily: fonts.bold,
-    fontSize: 10,
-    letterSpacing: 0.4,
-  },
-  meta: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.inkSoft,
-  },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 2 },
-  actionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-});

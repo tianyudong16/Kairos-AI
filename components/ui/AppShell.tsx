@@ -1,8 +1,8 @@
 import { ReactNode } from 'react';
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, radii } from '@/constants/theme';
+import { radii, useThemedStyles } from '@/constants/theme';
 
 type Props = {
   children: ReactNode;
@@ -18,6 +18,71 @@ export function AppShell({
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isWide = width >= 820;
+  const styles = useThemedStyles((colors) => ({
+    mobileRoot: {
+      flex: 1,
+      backgroundColor: colors.bg,
+    },
+    desktopRoot: {
+      flex: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      backgroundColor: colors.bgElevated,
+      padding: 24,
+      overflow: 'hidden' as const,
+    },
+    desktopAccentA: {
+      position: 'absolute' as const,
+      width: 420,
+      height: 420,
+      borderRadius: 210,
+      backgroundColor: `${colors.coach}20`,
+      top: -80,
+      left: -60,
+    },
+    desktopAccentB: {
+      position: 'absolute' as const,
+      width: 380,
+      height: 380,
+      borderRadius: 190,
+      backgroundColor: `${colors.energy}24`,
+      bottom: -100,
+      right: -40,
+    },
+    desktopFrame: {
+      width: 420,
+      maxWidth: '100%' as const,
+      height: '100%' as const,
+      maxHeight: 860,
+      borderRadius: 36,
+      overflow: 'hidden' as const,
+      backgroundColor: colors.bg,
+      borderWidth: 1,
+      borderColor: colors.lineStrong,
+      ...Platform.select({
+        web: {
+          boxShadow: '0 16px 40px rgba(6, 32, 38, 0.16)',
+        },
+        default: {
+          shadowColor: colors.black,
+          shadowOpacity: 0.16,
+          shadowRadius: 28,
+          shadowOffset: { width: 0, height: 16 },
+        },
+      }),
+    },
+    phone: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      paddingHorizontal: 20,
+    },
+    phoneWide: {
+      borderRadius: radii.xl,
+    },
+    body: {
+      flex: 1,
+    },
+  }));
 
   const content = (
     <View
@@ -51,69 +116,3 @@ export function AppShell({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  mobileRoot: {
-    flex: 1,
-    backgroundColor: colors.bg,
-  },
-  desktopRoot: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#E7E2D4',
-    padding: 24,
-    overflow: 'hidden',
-  },
-  desktopAccentA: {
-    position: 'absolute',
-    width: 420,
-    height: 420,
-    borderRadius: 210,
-    backgroundColor: 'rgba(107, 92, 224, 0.12)',
-    top: -80,
-    left: -60,
-  },
-  desktopAccentB: {
-    position: 'absolute',
-    width: 380,
-    height: 380,
-    borderRadius: 190,
-    backgroundColor: 'rgba(201, 135, 58, 0.14)',
-    bottom: -100,
-    right: -40,
-  },
-  desktopFrame: {
-    width: 420,
-    maxWidth: '100%',
-    height: '100%',
-    maxHeight: 860,
-    borderRadius: 36,
-    overflow: 'hidden',
-    backgroundColor: colors.bg,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    ...Platform.select({
-      web: {
-        boxShadow: '0 16px 40px rgba(28, 26, 23, 0.16)',
-      },
-      default: {
-        shadowColor: '#1C1A17',
-        shadowOpacity: 0.16,
-        shadowRadius: 28,
-        shadowOffset: { width: 0, height: 16 },
-      },
-    }),
-  },
-  phone: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 20,
-  },
-  phoneWide: {
-    borderRadius: radii.xl,
-  },
-  body: {
-    flex: 1,
-  },
-});

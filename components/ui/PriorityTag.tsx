@@ -1,6 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useMemo } from 'react';
+import { Pressable, Text, View } from 'react-native';
 
-import { fonts, priorityMeta, radii } from '@/constants/theme';
+import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import type { Priority } from '@/context/AppContext';
 
 const order: Priority[] = ['high', 'medium', 'low'];
@@ -12,7 +13,62 @@ export function PriorityTag({
   priority: Priority;
   onChange?: (next: Priority) => void;
 }) {
-  const meta = priorityMeta[priority];
+  const { colors } = useTheme();
+  const styles = useThemedStyles((c) => ({
+    tag: {
+      borderRadius: radii.pill,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+    },
+    label: {
+      color: c.white,
+      fontFamily: fonts.bold,
+      fontSize: 11,
+      letterSpacing: 0.5,
+    },
+    row: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: 6,
+    },
+    choice: {
+      borderRadius: radii.pill,
+      borderWidth: 1.5,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      minWidth: 52,
+      alignItems: 'center' as const,
+    },
+    choiceLabel: {
+      fontFamily: fonts.bold,
+      fontSize: 11,
+      letterSpacing: 0.4,
+    },
+  }));
+
+  const metaByPriority = useMemo(
+    () =>
+      ({
+        high: {
+          label: 'HIGH',
+          color: colors.priorityHigh,
+          soft: colors.priorityHighSoft,
+        },
+        medium: {
+          label: 'MED',
+          color: colors.priorityMedium,
+          soft: colors.priorityMediumSoft,
+        },
+        low: {
+          label: 'LOW',
+          color: colors.priorityLow,
+          soft: colors.priorityLowSoft,
+        },
+      }) as const,
+    [colors]
+  );
+
+  const meta = metaByPriority[priority];
 
   if (!onChange) {
     return (
@@ -26,7 +82,7 @@ export function PriorityTag({
     <View style={styles.row}>
       {order.map((value) => {
         const active = value === priority;
-        const tone = priorityMeta[value];
+        const tone = metaByPriority[value];
         return (
           <Pressable
             key={value}
@@ -41,7 +97,7 @@ export function PriorityTag({
               },
             ]}
           >
-            <Text style={[styles.choiceLabel, { color: active ? '#fff' : tone.color }]}>
+            <Text style={[styles.choiceLabel, { color: active ? colors.white : tone.color }]}>
               {tone.label}
             </Text>
           </Pressable>
@@ -50,35 +106,3 @@ export function PriorityTag({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  tag: {
-    borderRadius: radii.pill,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  label: {
-    color: '#fff',
-    fontFamily: fonts.bold,
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  choice: {
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    minWidth: 52,
-    alignItems: 'center',
-  },
-  choiceLabel: {
-    fontFamily: fonts.bold,
-    fontSize: 11,
-    letterSpacing: 0.4,
-  },
-});

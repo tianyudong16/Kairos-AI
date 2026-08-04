@@ -1,11 +1,21 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { View } from 'react-native';
 
 import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
 import { AppShell } from '@/components/ui/AppShell';
-import { colors } from '@/constants/theme';
+import { useThemedStyles } from '@/constants/theme';
 
 export default function TabLayout() {
+  const styles = useThemedStyles((colors) => ({
+    tabsRoot: {
+      flex: 1,
+    },
+    scene: {
+      backgroundColor: colors.bg,
+      flex: 1,
+    },
+  }));
+
   return (
     <AppShell footer={<FloatingTabBar />}>
       <View style={styles.tabsRoot}>
@@ -26,13 +36,3 @@ export default function TabLayout() {
     </AppShell>
   );
 }
-
-const styles = StyleSheet.create({
-  tabsRoot: {
-    flex: 1,
-  },
-  scene: {
-    backgroundColor: colors.bg,
-    flex: 1,
-  },
-});
