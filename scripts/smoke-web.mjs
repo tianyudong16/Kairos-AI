@@ -54,7 +54,7 @@ async function main() {
       after.indexOf('Recovery walk') < after.indexOf('Deep work block')
   );
 
-  await page.getByRole('button', { name: /Schedule/i }).click();
+  await page.getByRole('button', { name: /^Schedule\b/ }).click();
   await page.waitForTimeout(800);
 
   await page.goto(`${base}/coach`, { waitUntil: 'networkidle' });
@@ -116,7 +116,7 @@ async function main() {
   await check(
     results,
     'add date chips',
-    (await page.getByRole('button', { name: /Schedule for/i }).count()) > 1
+    (await page.getByRole('button', { name: /Choose date/i }).count()) > 1
   );
 
   console.log(results.join('\n'));

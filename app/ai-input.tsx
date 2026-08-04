@@ -459,7 +459,7 @@ export default function AiInputScreen() {
                 <Pressable
                   key={day}
                   accessibilityRole="button"
-                  accessibilityLabel={`Schedule for ${formatShortDate(day)}`}
+                  accessibilityLabel={`Choose date ${formatShortDate(day)}`}
                   accessibilityState={{ selected: active }}
                   onPress={() => setSelectedDate(day)}
                   style={[styles.dateChip, active && styles.dateChipActive]}
