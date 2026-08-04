@@ -224,7 +224,6 @@ export default function DashboardScreen() {
     peakWindowLabel,
     capacitySummary,
     categories,
-    reorderTask,
     deleteTask,
     updateTask,
     optimizeSchedule,
@@ -384,8 +383,6 @@ export default function DashboardScreen() {
 
       <ScheduleTimeline
         tasks={tasksForSelectedDate}
-        onMoveUp={(id) => reorderTask(id, 'up')}
-        onMoveDown={(id) => reorderTask(id, 'down')}
         onDelete={deleteTask}
         onPriority={(id, priority) => updateTask(id, { priority })}
       />

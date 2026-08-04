@@ -71,22 +71,6 @@ async function main() {
   await page.waitForTimeout(200);
   await check(results, 'priority change', (await page.getByText('LOW').count()) > 0);
 
-  const before = await page
-    .locator('input')
-    .evaluateAll((els) => els.map((e) => e.value).filter(Boolean));
-  await page.getByRole('button', { name: 'Move task down' }).first().click();
-  await page.waitForTimeout(400);
-  const after = await page
-    .locator('input')
-    .evaluateAll((els) => els.map((e) => e.value).filter(Boolean));
-  await check(
-    results,
-    'reorder',
-    before.includes('Deep work block') &&
-      after.includes('Recovery walk') &&
-      after.indexOf('Recovery walk') < after.indexOf('Deep work block')
-  );
-
   await page.getByRole('button', { name: /Schedule.*→/ }).click();
   await page.waitForTimeout(800);
 

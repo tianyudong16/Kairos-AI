@@ -130,18 +130,6 @@ export default function AiInputScreen() {
     setTitle('');
   };
 
-  const moveDraft = (id: string, direction: 'up' | 'down') => {
-    setDrafts((prev) => {
-      const index = prev.findIndex((d) => d.id === id);
-      if (index < 0) return prev;
-      const target = direction === 'up' ? index - 1 : index + 1;
-      if (target < 0 || target >= prev.length) return prev;
-      const copy = [...prev];
-      [copy[index], copy[target]] = [copy[target], copy[index]];
-      return copy;
-    });
-  };
-
   const cycleCategory = (id: string) => {
     setDrafts((prev) =>
       prev.map((draft) => {
@@ -357,23 +345,6 @@ export default function AiInputScreen() {
       fontSize: 13,
       color: c.inkSoft,
     },
-    reorderCol: {
-      gap: 4,
-    },
-    reorderBtn: {
-      width: 36,
-      height: 32,
-      borderRadius: 10,
-      alignItems: 'center' as const,
-      justifyContent: 'center' as const,
-      backgroundColor: c.bgElevated,
-      borderWidth: 1,
-      borderColor: c.lineStrong,
-      ...Platform.select({ web: { cursor: 'pointer' } as object, default: {} }),
-    },
-    reorderDisabled: {
-      opacity: 0.4,
-    },
     queueActions: {
       flexDirection: 'row' as const,
       alignItems: 'center' as const,
@@ -439,7 +410,7 @@ export default function AiInputScreen() {
           {mode === 'ai' ? 'Parse a brain dump' : 'Build your task queue'}
         </Text>
         <Text style={styles.subtitle}>
-          Choose the day, set priority, reorder with ↑↓, then schedule.
+          Choose the day, set priority, then schedule.
         </Text>
 
         <View style={styles.dateSection}>
@@ -601,44 +572,6 @@ export default function AiInputScreen() {
                     }
                     style={styles.parsedName}
                   />
-                  <View style={styles.reorderCol}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Move task up"
-                      disabled={index === 0}
-                      hitSlop={8}
-                      onPress={() => moveDraft(task.id, 'up')}
-                      style={[
-                        styles.reorderBtn,
-                        index === 0 && styles.reorderDisabled,
-                      ]}
-                    >
-                      <Ionicons
-                        name="chevron-up"
-                        size={20}
-                        color={index === 0 ? colors.inkMuted : colors.ink}
-                      />
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Move task down"
-                      disabled={index === drafts.length - 1}
-                      hitSlop={8}
-                      onPress={() => moveDraft(task.id, 'down')}
-                      style={[
-                        styles.reorderBtn,
-                        index === drafts.length - 1 && styles.reorderDisabled,
-                      ]}
-                    >
-                      <Ionicons
-                        name="chevron-down"
-                        size={20}
-                        color={
-                          index === drafts.length - 1 ? colors.inkMuted : colors.ink
-                        }
-                      />
-                    </Pressable>
-                  </View>
                 </View>
 
                 <Text style={styles.parsedMeta}>

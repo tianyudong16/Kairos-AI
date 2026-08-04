@@ -18,16 +18,12 @@ const iconMap = {
 
 type Props = {
   tasks: Task[];
-  onMoveUp?: (id: string) => void;
-  onMoveDown?: (id: string) => void;
   onDelete?: (id: string) => void;
   onPriority?: (id: string, priority: Priority) => void;
 };
 
 export function ScheduleTimeline({
   tasks,
-  onMoveUp,
-  onMoveDown,
   onDelete,
   onPriority,
 }: Props) {
@@ -156,37 +152,17 @@ export function ScheduleTimeline({
                 ) : (
                   <PriorityTag priority={task.priority} />
                 )}
-                {(onMoveUp || onMoveDown || onDelete) && (
+                {onDelete ? (
                   <View style={styles.actions}>
-                    {onMoveUp ? (
-                      <Pressable
-                        accessibilityLabel="Move up"
-                        onPress={() => onMoveUp(task.id)}
-                        style={styles.actionBtn}
-                      >
-                        <Ionicons name="arrow-up" size={16} color={colors.ink} />
-                      </Pressable>
-                    ) : null}
-                    {onMoveDown ? (
-                      <Pressable
-                        accessibilityLabel="Move down"
-                        onPress={() => onMoveDown(task.id)}
-                        style={styles.actionBtn}
-                      >
-                        <Ionicons name="arrow-down" size={16} color={colors.ink} />
-                      </Pressable>
-                    ) : null}
-                    {onDelete ? (
-                      <Pressable
-                        accessibilityLabel="Delete"
-                        onPress={() => onDelete(task.id)}
-                        style={styles.actionBtn}
-                      >
-                        <Ionicons name="trash-outline" size={16} color={colors.alert} />
-                      </Pressable>
-                    ) : null}
+                    <Pressable
+                      accessibilityLabel="Delete"
+                      onPress={() => onDelete(task.id)}
+                      style={styles.actionBtn}
+                    >
+                      <Ionicons name="trash-outline" size={16} color={colors.alert} />
+                    </Pressable>
                   </View>
-                )}
+                ) : null}
               </View>
             </View>
           </Animated.View>
