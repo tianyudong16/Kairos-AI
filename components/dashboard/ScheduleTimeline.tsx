@@ -18,20 +18,31 @@ const iconMap = {
 
 type Props = {
   tasks: Task[];
-  onMoveUp?: (id: string) => void;
-  onMoveDown?: (id: string) => void;
+  onMoveEarlier?: (id: string) => void;
+  onMoveLater?: (id: string) => void;
+  onMoveTomorrow?: (id: string) => void;
   onDelete?: (id: string) => void;
   onPriority?: (id: string, priority: Priority) => void;
+  /** @deprecated use onMoveEarlier */
+  onMoveUp?: (id: string) => void;
+  /** @deprecated use onMoveLater */
+  onMoveDown?: (id: string) => void;
 };
 
 export function ScheduleTimeline({
   tasks,
-  onMoveUp,
-  onMoveDown,
+  onMoveEarlier,
+  onMoveLater,
+  onMoveTomorrow,
   onDelete,
   onPriority,
+  onMoveUp,
+  onMoveDown,
 }: Props) {
   const { getCategory } = useApp();
+  const moveEarlier = onMoveEarlier || onMoveUp;
+  const moveLater = onMoveLater || onMoveDown;
+
   return (
     <View style={styles.wrap}>
       {tasks.length === 0 ? (
@@ -39,9 +50,15 @@ export function ScheduleTimeline({
           <Text style={styles.emptyTitle}>No tasks yet</Text>
           <Text style={styles.emptyBody}>Tap + to add tasks with AI or manually.</Text>
         </View>
-      ) : null}
+      ) : (
+        <Text style={styles.legend}>
+          Earlier / Later reshuffles the day and updates times. Tomorrow defers a task.
+        </Text>
+      )}
       {tasks.map((task, index) => {
         const meta = getCategory(task.category);
+        const isFirst = index === 0;
+        const isLast = index === tasks.length - 1;
         return (
           <Animated.View
             key={task.id}
@@ -82,33 +99,73 @@ export function ScheduleTimeline({
                 ) : (
                   <PriorityTag priority={task.priority} />
                 )}
-                {(onMoveUp || onMoveDown || onDelete) && (
+                {(moveEarlier || moveLater || onMoveTomorrow || onDelete) && (
                   <View style={styles.actions}>
-                    {onMoveUp ? (
+                    {moveEarlier ? (
                       <Pressable
-                        accessibilityLabel="Move up"
-                        onPress={() => onMoveUp(task.id)}
-                        style={styles.actionBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Move earlier in the day"
+                        disabled={isFirst}
+                        onPress={() => moveEarlier(task.id)}
+                        style={[styles.actionChip, isFirst && styles.actionDisabled]}
                       >
-                        <Ionicons name="arrow-up" size={16} color={colors.ink} />
+                        <Ionicons
+                          name="arrow-up"
+                          size={14}
+                          color={isFirst ? colors.inkMuted : colors.ink}
+                        />
+                        <Text
+                          style={[
+                            styles.actionLabel,
+                            isFirst && styles.actionLabelDisabled,
+                          ]}
+                        >
+                          Earlier
+                        </Text>
                       </Pressable>
                     ) : null}
-                    {onMoveDown ? (
+                    {moveLater ? (
                       <Pressable
-                        accessibilityLabel="Move down"
-                        onPress={() => onMoveDown(task.id)}
-                        style={styles.actionBtn}
+                        accessibilityRole="button"
+                        accessibilityLabel="Move later in the day"
+                        disabled={isLast}
+                        onPress={() => moveLater(task.id)}
+                        style={[styles.actionChip, isLast && styles.actionDisabled]}
                       >
-                        <Ionicons name="arrow-down" size={16} color={colors.ink} />
+                        <Ionicons
+                          name="arrow-down"
+                          size={14}
+                          color={isLast ? colors.inkMuted : colors.ink}
+                        />
+                        <Text
+                          style={[
+                            styles.actionLabel,
+                            isLast && styles.actionLabelDisabled,
+                          ]}
+                        >
+                          Later
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                    {onMoveTomorrow ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Move task to tomorrow"
+                        onPress={() => onMoveTomorrow(task.id)}
+                        style={styles.actionChip}
+                      >
+                        <Ionicons name="calendar-outline" size={14} color={colors.ink} />
+                        <Text style={styles.actionLabel}>Tomorrow</Text>
                       </Pressable>
                     ) : null}
                     {onDelete ? (
                       <Pressable
-                        accessibilityLabel="Delete"
+                        accessibilityRole="button"
+                        accessibilityLabel="Delete task"
                         onPress={() => onDelete(task.id)}
-                        style={styles.actionBtn}
+                        style={[styles.actionChip, styles.deleteChip]}
                       >
-                        <Ionicons name="trash-outline" size={16} color={colors.alert} />
+                        <Ionicons name="trash-outline" size={14} color={colors.alert} />
                       </Pressable>
                     ) : null}
                   </View>
@@ -124,6 +181,13 @@ export function ScheduleTimeline({
 
 const styles = StyleSheet.create({
   wrap: { gap: 12 },
+  legend: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: colors.inkMuted,
+    lineHeight: 16,
+    marginBottom: 2,
+  },
   empty: {
     borderRadius: radii.md,
     borderWidth: 1,
@@ -182,15 +246,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.inkSoft,
   },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 2 },
-  actionBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  actionChip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 4,
+    minHeight: 32,
+    paddingHorizontal: 10,
+    borderRadius: radii.pill,
     backgroundColor: colors.bgElevated,
     borderWidth: 1,
-    borderColor: colors.line,
+    borderColor: colors.lineStrong,
+  },
+  actionDisabled: {
+    opacity: 0.4,
+  },
+  actionLabel: {
+    fontFamily: fonts.semibold,
+    fontSize: 11,
+    color: colors.ink,
+  },
+  actionLabelDisabled: {
+    color: colors.inkMuted,
+  },
+  deleteChip: {
+    paddingHorizontal: 8,
+    borderColor: colors.alert,
+    backgroundColor: colors.alertSoft,
   },
 });

@@ -16,6 +16,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { SuggestedAction } from '@/lib/coach';
 import { useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
+import { SCENARIO_PRESETS } from '@/lib/personas';
 import { formatDisplayDate, isToday, sleepDurationHours } from '@/lib/schedule';
 
 const colorMap: Record<SuggestedAction['colorKey'], { color: string; soft: string }> = {
@@ -132,6 +133,21 @@ export default function CoachScreen() {
             </Pressable>
           );
         })}
+        {SCENARIO_PRESETS.filter((s) => s.coachPrompt).map((scenario) => (
+          <Pressable
+            key={scenario.id}
+            onPress={() => submit(scenario.coachPrompt!)}
+            style={[
+              styles.actionCard,
+              { backgroundColor: colors.lifeSoft, borderColor: colors.life },
+            ]}
+          >
+            <Text style={[styles.actionTitle, { color: colors.life }]}>
+              {scenario.title}
+            </Text>
+            <Text style={styles.actionDetail}>{scenario.detail}</Text>
+          </Pressable>
+        ))}
       </ScrollView>
 
       {lastCoachChanges.length > 0 ? (

@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ScheduleTimeline } from '@/components/dashboard/ScheduleTimeline';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
+import { tipForChronotype } from '@/lib/personas';
 import { addDays, formatDisplayDate, isToday } from '@/lib/schedule';
 import { colors, fonts, radii } from '@/constants/theme';
 
@@ -21,11 +22,13 @@ export default function DashboardScreen() {
     capacitySummary,
     categories,
     reorderTask,
+    moveTaskDate,
     deleteTask,
     updateTask,
     optimizeSchedule,
   } = useApp();
   const viewingToday = isToday(selectedDate);
+  const energyTip = tipForChronotype(chronotype);
 
   return (
     <ScrollView
@@ -92,6 +95,7 @@ export default function DashboardScreen() {
             ? ` · overflow ${capacitySummary.overflowHours}h`
             : ''}
         </Text>
+        <Text style={styles.energyTip}>{energyTip}</Text>
       </Animated.View>
 
       <View style={styles.sectionHeader}>
@@ -134,8 +138,9 @@ export default function DashboardScreen() {
 
       <ScheduleTimeline
         tasks={tasksForSelectedDate}
-        onMoveUp={(id) => reorderTask(id, 'up')}
-        onMoveDown={(id) => reorderTask(id, 'down')}
+        onMoveEarlier={(id) => reorderTask(id, 'up')}
+        onMoveLater={(id) => reorderTask(id, 'down')}
+        onMoveTomorrow={(id) => moveTaskDate(id, addDays(selectedDate, 1))}
         onDelete={deleteTask}
         onPriority={(id, priority) => updateTask(id, { priority })}
       />
@@ -243,6 +248,13 @@ const styles = StyleSheet.create({
     fontFamily: fonts.medium,
     fontSize: 12,
     color: colors.inkMuted,
+  },
+  energyTip: {
+    fontFamily: fonts.medium,
+    fontSize: 12,
+    color: colors.inkSoft,
+    lineHeight: 17,
+    marginTop: 2,
   },
   sleepLine: {
     fontFamily: fonts.body,

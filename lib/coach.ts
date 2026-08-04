@@ -87,6 +87,30 @@ function replaceDay(all: Task[], date: string, nextDay: Task[]) {
   return [...all.filter((t) => t.date !== date), ...nextDay];
 }
 
+/**
+ * Pack tasks in the given array order (no priority re-sort).
+ * Use for manual reorder so ↑/↓ actually stick.
+ */
+export function packInOrder(
+  dayList: Task[],
+  date: string,
+  startAt: string,
+  sleep: SleepSchedule,
+  bufferMinutes = 10
+) {
+  let cursor = timeToMinutes(startAt);
+  return dayList.map((task, index) => {
+    if (task.category === 'life' && /lunch/i.test(task.title)) {
+      cursor = Math.max(cursor, timeToMinutes('12:00'));
+    }
+    const start = minutesToTime(cursor);
+    const end = minutesToTime(cursor + task.durationMinutes);
+    cursor += task.durationMinutes + bufferMinutes;
+    return { ...task, date, start, end, order: index };
+  });
+}
+
+/** Pack by priority (HIGH first), then order — used by AI optimize flows. */
 export function packDay(
   dayList: Task[],
   date: string,
@@ -99,21 +123,7 @@ export function packDay(
     (a, b) =>
       priorityRank[a.priority] - priorityRank[b.priority] || a.order - b.order
   );
-  let cursor = timeToMinutes(startAt);
-  const bed = bedMinutes(sleep);
-
-  return sorted.map((task, index) => {
-    if (task.category === 'life' && /lunch/i.test(task.title)) {
-      cursor = Math.max(cursor, timeToMinutes('12:00'));
-    }
-    if (cursor + task.durationMinutes > bed - 30) {
-      // spill handled by callers
-    }
-    const start = minutesToTime(cursor);
-    const end = minutesToTime(cursor + task.durationMinutes);
-    cursor += task.durationMinutes + bufferMinutes;
-    return { ...task, date, start, end, order: index };
-  });
+  return packInOrder(sorted, date, startAt, sleep, bufferMinutes);
 }
 
 function findTaskByMention(list: Task[], text: string): Task | null {

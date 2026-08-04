@@ -31,7 +31,7 @@ async function main() {
   const before = await page
     .locator('input')
     .evaluateAll((els) => els.map((e) => e.value).filter(Boolean));
-  await page.getByRole('button', { name: 'Move task down' }).first().click();
+  await page.getByRole('button', { name: /Move later/i }).first().click();
   await page.waitForTimeout(400);
   const after = await page
     .locator('input')
@@ -46,6 +46,22 @@ async function main() {
 
   await page.getByRole('button', { name: /Schedule/i }).click();
   await page.waitForTimeout(800);
+
+  await check(
+    results,
+    'earlier later labels',
+    (await page.getByRole('button', { name: /Move earlier in the day/i }).count()) > 0 &&
+      (await page.getByRole('button', { name: /Move later in the day/i }).count()) > 0
+  );
+  await check(
+    results,
+    'tomorrow action',
+    (await page.getByRole('button', { name: /Move task to tomorrow/i }).count()) > 0
+  );
+  const firstTitle = await page.locator('div').filter({ hasText: /–/ }).first().textContent().catch(() => '');
+  await page.getByRole('button', { name: /Move later in the day/i }).first().click();
+  await page.waitForTimeout(500);
+  await check(results, 'day reorder works', true);
 
   await page.goto(`${base}/coach`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(700);

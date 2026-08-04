@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 
 import { colors } from '@/constants/theme';
-import { analyzeDay, DayAnalysis, packDay, runCoach } from '@/lib/coach';
+import { analyzeDay, DayAnalysis, packDay, packInOrder, runCoach } from '@/lib/coach';
 import {
   addDays,
   addMinutesToTime,
@@ -422,9 +422,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       deleteTask: (id) => setTasks((prev) => prev.filter((task) => task.id !== id)),
       reorderTask: (id, direction) => {
         setTasks((prev) => {
+          // Sort by current clock time so ↑/↓ means earlier/later in the day
           const day = prev
             .filter((t) => t.date === selectedDate)
-            .sort((a, b) => a.order - b.order);
+            .sort(
+              (a, b) =>
+                timeToMinutes(a.start) - timeToMinutes(b.start) || a.order - b.order
+            );
           const others = prev.filter((t) => t.date !== selectedDate);
           const index = day.findIndex((t) => t.id === id);
           if (index < 0) return prev;
@@ -434,21 +438,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const tmp = copy[index];
           copy[index] = copy[target];
           copy[target] = tmp;
-          return [...others, ...packDay(copy, selectedDate, copy[0]?.start || peakStart, sleep)];
+          // Preserve manual order — do NOT re-sort by priority (that made arrows feel broken)
+          const startAt =
+            copy.reduce(
+              (earliest, t) => Math.min(earliest, timeToMinutes(t.start)),
+              timeToMinutes(peakStart)
+            ) || timeToMinutes(peakStart);
+          return [
+            ...others,
+            ...packInOrder(copy, selectedDate, minutesToTime(startAt), sleep),
+          ];
         });
       },
       moveTaskDate: (id, date) => {
-        setTasks((prev) =>
-          prev.map((task) =>
-            task.id === id
-              ? {
-                  ...task,
-                  date,
-                  order: prev.filter((t) => t.date === date).length,
-                }
-              : task
-          )
-        );
+        setTasks((prev) => {
+          const moving = prev.find((t) => t.id === id);
+          if (!moving) return prev;
+          const without = prev.filter((t) => t.id !== id);
+          const dest = without.filter((t) => t.date === date);
+          const sourceDate = moving.date;
+          const moved = {
+            ...moving,
+            date,
+            order: dest.length,
+            start: peakStart,
+            end: addMinutesToTime(peakStart, moving.durationMinutes),
+          };
+          const next = [...without, moved];
+          const packedDest = packInOrder(
+            [...dest, moved].sort((a, b) => a.order - b.order),
+            date,
+            peakStart,
+            sleep
+          );
+          if (sourceDate === date) {
+            return [
+              ...next.filter((t) => t.date !== date),
+              ...packedDest,
+            ];
+          }
+          const packedSource = packInOrder(
+            next
+              .filter((t) => t.date === sourceDate)
+              .sort(
+                (a, b) =>
+                  timeToMinutes(a.start) - timeToMinutes(b.start) || a.order - b.order
+              ),
+            sourceDate,
+            peakStart,
+            sleep
+          );
+          return [
+            ...next.filter((t) => t.date !== date && t.date !== sourceDate),
+            ...packedSource,
+            ...packedDest,
+          ];
+        });
       },
       optimizeSchedule,
       coachMessages,

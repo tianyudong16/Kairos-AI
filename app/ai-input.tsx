@@ -18,6 +18,7 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { PriorityTag } from '@/components/ui/PriorityTag';
 import { Category, DraftTask, Priority, useApp } from '@/context/AppContext';
 import { colors, fonts, radii } from '@/constants/theme';
+import { SCENARIO_PRESETS } from '@/lib/personas';
 import {
   formatDisplayDate,
   formatDuration,
@@ -180,27 +181,48 @@ export default function AiInputScreen() {
           {mode === 'ai' ? 'Parse a brain dump' : 'Build your task queue'}
         </Text>
         <Text style={styles.subtitle}>
-          Set priority, reorder with ↑↓, then schedule into{' '}
+          Set priority, reorder queue order, then schedule into{' '}
           {isToday(selectedDate) ? 'today' : formatDisplayDate(selectedDate)}.
         </Text>
 
         {mode === 'ai' ? (
-          <View style={styles.inputRow}>
-            <TextInput
-              value={prompt}
-              onChangeText={setPrompt}
-              multiline
-              style={styles.input}
-              placeholderTextColor={colors.inkMuted}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Parse tasks"
-              onPress={parsePrompt}
-              style={({ pressed }) => [styles.parseBtn, pressed && { opacity: 0.85 }]}
+          <View style={styles.aiBlock}>
+            <Text style={styles.fieldLabel}>Persona scenarios</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.scenarioRow}
             >
-              <Ionicons name="play" size={20} color={colors.white} />
-            </Pressable>
+              {SCENARIO_PRESETS.map((scenario) => (
+                <Pressable
+                  key={scenario.id}
+                  onPress={() => {
+                    setPrompt(scenario.prompt);
+                  }}
+                  style={styles.scenarioChip}
+                >
+                  <Text style={styles.scenarioTitle}>{scenario.title}</Text>
+                  <Text style={styles.scenarioDetail}>{scenario.detail}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={styles.inputRow}>
+              <TextInput
+                value={prompt}
+                onChangeText={setPrompt}
+                multiline
+                style={styles.input}
+                placeholderTextColor={colors.inkMuted}
+              />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Parse tasks"
+                onPress={parsePrompt}
+                style={({ pressed }) => [styles.parseBtn, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons name="play" size={20} color={colors.white} />
+              </Pressable>
+            </View>
           </View>
         ) : (
           <View style={styles.manualBox}>
@@ -306,7 +328,7 @@ export default function AiInputScreen() {
                 <View style={styles.reorderCol}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Move task up"
+                    accessibilityLabel="Move earlier in queue"
                     disabled={index === 0}
                     hitSlop={8}
                     onPress={() => moveDraft(task.id, 'up')}
@@ -316,14 +338,22 @@ export default function AiInputScreen() {
                     ]}
                   >
                     <Ionicons
-                      name="chevron-up"
-                      size={20}
+                      name="arrow-up"
+                      size={16}
                       color={index === 0 ? colors.inkMuted : colors.ink}
                     />
+                    <Text
+                      style={[
+                        styles.reorderText,
+                        index === 0 && { color: colors.inkMuted },
+                      ]}
+                    >
+                      Earlier
+                    </Text>
                   </Pressable>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Move task down"
+                    accessibilityLabel="Move later in queue"
                     disabled={index === drafts.length - 1}
                     hitSlop={8}
                     onPress={() => moveDraft(task.id, 'down')}
@@ -333,12 +363,20 @@ export default function AiInputScreen() {
                     ]}
                   >
                     <Ionicons
-                      name="chevron-down"
-                      size={20}
+                      name="arrow-down"
+                      size={16}
                       color={
                         index === drafts.length - 1 ? colors.inkMuted : colors.ink
                       }
                     />
+                    <Text
+                      style={[
+                        styles.reorderText,
+                        index === drafts.length - 1 && { color: colors.inkMuted },
+                      ]}
+                    >
+                      Later
+                    </Text>
                   </Pressable>
                 </View>
               </View>
@@ -458,6 +496,24 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     lineHeight: 20,
   },
+  aiBlock: { gap: 10 },
+  scenarioRow: { gap: 8, paddingBottom: 2 },
+  scenarioChip: {
+    width: 150,
+    borderRadius: radii.md,
+    borderWidth: 1.5,
+    borderColor: colors.coach,
+    backgroundColor: colors.coachSoft,
+    padding: 10,
+    gap: 4,
+  },
+  scenarioTitle: { fontFamily: fonts.bold, fontSize: 13, color: colors.coach },
+  scenarioDetail: {
+    fontFamily: fonts.body,
+    fontSize: 11,
+    color: colors.inkSoft,
+    lineHeight: 14,
+  },
   inputRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-end' },
   input: {
     flex: 1,
@@ -573,15 +629,23 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   reorderBtn: {
-    width: 36,
+    minWidth: 72,
     height: 32,
+    paddingHorizontal: 8,
     borderRadius: 10,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 3,
     backgroundColor: colors.bgElevated,
     borderWidth: 1,
     borderColor: colors.lineStrong,
     ...Platform.select({ web: { cursor: 'pointer' } as object, default: {} }),
+  },
+  reorderText: {
+    fontFamily: fonts.semibold,
+    fontSize: 10,
+    color: colors.ink,
   },
   reorderDisabled: {
     opacity: 0.4,
