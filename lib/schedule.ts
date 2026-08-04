@@ -45,6 +45,59 @@ export type SleepSchedule = {
   wakeTime: string;
 };
 
+/** Overnight-aware minutes from bedtime → wake. */
+export function sleepDurationMinutes(sleep: SleepSchedule) {
+  const wake = timeToMinutes(sleep.wakeTime);
+  let bed = timeToMinutes(sleep.bedtime);
+  if (bed > wake) bed -= 24 * 60;
+  return wake - bed;
+}
+
+export function sleepDurationHours(sleep: SleepSchedule) {
+  return Math.round((sleepDurationMinutes(sleep) / 60) * 10) / 10;
+}
+
+/**
+ * Set a target sleep need in hours.
+ * Default: keep wake fixed, move bedtime earlier/later.
+ */
+export function applySleepNeedHours(
+  sleep: SleepSchedule,
+  hours: number,
+  anchor: 'wake' | 'bed' = 'wake'
+): SleepSchedule {
+  const clamped = Math.min(12, Math.max(4, hours));
+  const needMinutes = Math.round(clamped * 60);
+  if (anchor === 'bed') {
+    return {
+      bedtime: sleep.bedtime,
+      wakeTime: minutesToTime(timeToMinutes(sleep.bedtime) + needMinutes),
+    };
+  }
+  return {
+    wakeTime: sleep.wakeTime,
+    bedtime: minutesToTime(timeToMinutes(sleep.wakeTime) - needMinutes),
+  };
+}
+
+/** Parse “need 8h”, “only 8 hours of sleep”, “sleep 8h”. */
+export function parseSleepNeedHours(text: string): number | null {
+  const lower = text.toLowerCase();
+  const patterns = [
+    /(?:only\s+)?(?:need(?:s)?|want(?:s)?|require(?:s)?)\s+(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\b/,
+    /(?:sleep(?:\s*time)?|rest|sleeptime)\s+(?:for\s+)?(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\b/,
+    /(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\s+(?:of\s+)?(?:sleep|rest)\b/,
+    /(?:sleep(?:\s*time)?|sleeptime)\s+(?:to\s+)?(?:only\s+)?(?:need(?:s)?\s+)?(\d+(?:\.\d+)?)\s*(?:h|hr|hrs|hours?)\b/,
+  ];
+  for (const pattern of patterns) {
+    const match = lower.match(pattern);
+    if (!match) continue;
+    const hours = parseFloat(match[1]);
+    if (!Number.isNaN(hours) && hours >= 4 && hours <= 12) return hours;
+  }
+  return null;
+}
+
 /** Mix a hex color toward white for soft backgrounds */
 export function softFromColor(hex: string, amount = 0.82): string {
   const cleaned = hex.replace('#', '');
@@ -173,14 +226,14 @@ export function chronotypeDefaults(chronotype: Chronotype): {
 } {
   switch (chronotype) {
     case 'early-bird':
-      return { sleep: { bedtime: '21:30', wakeTime: '5:30' }, peakStart: '6:00' };
+      return { sleep: { bedtime: '21:30', wakeTime: '5:30' }, peakStart: '6:00' }; // 8h
     case 'night-owl':
-      return { sleep: { bedtime: '1:00', wakeTime: '10:00' }, peakStart: '11:00' };
+      return { sleep: { bedtime: '2:00', wakeTime: '10:00' }, peakStart: '11:00' }; // 8h
     case 'mid-morning':
-      return { sleep: { bedtime: '23:30', wakeTime: '8:00' }, peakStart: '9:00' };
+      return { sleep: { bedtime: '0:00', wakeTime: '8:00' }, peakStart: '9:00' }; // 8h
     case 'morning':
     default:
-      return { sleep: { bedtime: '22:30', wakeTime: '7:00' }, peakStart: '9:00' };
+      return { sleep: { bedtime: '23:00', wakeTime: '7:00' }, peakStart: '9:00' }; // 8h
   }
 }
 

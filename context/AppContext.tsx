@@ -4,6 +4,7 @@ import { colors } from '@/constants/theme';
 import {
   addDays,
   addMinutesToTime,
+  applySleepNeedHours,
   Category,
   CategoryDef,
   chronotypeDefaults,
@@ -13,8 +14,10 @@ import {
   iconForCategory,
   minutesToTime,
   parseDuration,
+  parseSleepNeedHours,
   Priority,
   SleepSchedule,
+  sleepDurationHours,
   softFromColor,
   Task,
   timeToMinutes,
@@ -328,18 +331,109 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       changes.push({ id: `ch-${Date.now()}-${changes.length}`, label, detail });
     };
 
-    if (/bedtime|sleep|wake/.test(text)) {
+    if (/bedtime|sleep|wake|get up|sleeptime/.test(text)) {
+      const beforeHours = sleepDurationHours(sleep);
+      const needHours = parseSleepNeedHours(text);
+
+      // “I only need 8h of sleep” → set duration (keep wake, move bedtime)
+      if (needHours != null) {
+        const keepBed = /keep(?:ing)?\s+(?:my\s+)?bed|from\s+bedtime|bedtime\s+fixed/.test(text);
+        const next = applySleepNeedHours(sleep, needHours, keepBed ? 'bed' : 'wake');
+        const hours = sleepDurationHours(next);
+        setSleep(next);
+        pushChange(
+          'Sleep need updated',
+          `${beforeHours}h → ${hours}h · Bed ${next.bedtime} · Wake ${next.wakeTime}`
+        );
+        setLastCoachChanges(changes);
+        return `Set sleep need to ${hours}h (was ${beforeHours}h). Keeping ${
+          keepBed ? 'bedtime' : 'wake'
+        } fixed → bed ${next.bedtime}, wake ${next.wakeTime}.`;
+      }
+
       const next = { ...sleep };
-      if (text.includes('11')) next.bedtime = '23:00';
-      if (text.includes('10') && /bed/.test(text)) next.bedtime = '22:00';
-      if (text.includes('12')) next.bedtime = '0:00';
-      if (/wake early|wake 6/.test(text)) next.wakeTime = '6:00';
-      if (/wake 7/.test(text)) next.wakeTime = '7:00';
-      if (/wake 8/.test(text)) next.wakeTime = '8:00';
+      let changed = false;
+      const bedMatch = text.match(
+        /(?:bed(?:time)?|sleep(?:\s*at)?)\s*(?:at|=|:)?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)(?!\s*(?:h|hr|hrs|hours?)\b)/i
+      );
+      const wakeMatch = text.match(
+        /(?:wake|get up)\s*(?:at|=|:|up)?\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)(?!\s*(?:h|hr|hrs|hours?)\b)/i
+      );
+
+      if (bedMatch) {
+        // Prefer normalize if available via simple HH parsing
+        const raw = bedMatch[1].replace(/\s+/g, '');
+        const m = raw.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)?$/i);
+        if (m) {
+          let h = parseInt(m[1], 10);
+          const min = m[2] ? parseInt(m[2], 10) : 0;
+          const mer = m[3]?.toLowerCase();
+          if (mer === 'pm' && h < 12) h += 12;
+          if (mer === 'am' && h === 12) h = 0;
+          next.bedtime = `${h}:${`${min}`.padStart(2, '0')}`;
+          changed = true;
+        }
+      } else if (/\bbed(time)?\b/.test(text)) {
+        if (/\b11\b/.test(text)) {
+          next.bedtime = '23:00';
+          changed = true;
+        } else if (/\b10\b/.test(text)) {
+          next.bedtime = '22:00';
+          changed = true;
+        } else if (/\b12\b|midnight/.test(text)) {
+          next.bedtime = '0:00';
+          changed = true;
+        }
+      }
+
+      if (wakeMatch) {
+        const raw = wakeMatch[1].replace(/\s+/g, '');
+        const m = raw.match(/^(\d{1,2})(?::(\d{2}))?(am|pm)?$/i);
+        if (m) {
+          let h = parseInt(m[1], 10);
+          const min = m[2] ? parseInt(m[2], 10) : 0;
+          const mer = m[3]?.toLowerCase();
+          if (mer === 'pm' && h < 12) h += 12;
+          if (mer === 'am' && h === 12) h = 0;
+          next.wakeTime = `${h}:${`${min}`.padStart(2, '0')}`;
+          changed = true;
+        }
+      } else if (/\bwake\b|\bget up\b/.test(text)) {
+        if (/\bearly\b|\b5\b/.test(text)) {
+          next.wakeTime = '5:30';
+          changed = true;
+        } else if (/\b6\b/.test(text)) {
+          next.wakeTime = '6:00';
+          changed = true;
+        } else if (/\b7\b/.test(text)) {
+          next.wakeTime = '7:00';
+          changed = true;
+        } else if (/\b8\b/.test(text)) {
+          next.wakeTime = '8:00';
+          changed = true;
+        } else if (/\b9\b/.test(text)) {
+          next.wakeTime = '9:00';
+          changed = true;
+        } else if (/\b10\b/.test(text)) {
+          next.wakeTime = '10:00';
+          changed = true;
+        }
+      }
+
+      if (!changed) {
+        pushChange(
+          'Sleep unchanged',
+          `Still ${beforeHours}h · ${sleep.bedtime}–${sleep.wakeTime}`
+        );
+        setLastCoachChanges(changes);
+        return `Your sleep is currently ${beforeHours}h (bed ${sleep.bedtime} → wake ${sleep.wakeTime}). Try “I only need 8h of sleep”, “set bedtime 11pm”, or “wake at 7”.`;
+      }
+
+      const hours = sleepDurationHours(next);
       setSleep(next);
-      pushChange('Sleep updated', `Wake ${next.wakeTime} · Bed ${next.bedtime}`);
+      pushChange('Sleep updated', `${hours}h · Bed ${next.bedtime} · Wake ${next.wakeTime}`);
       setLastCoachChanges(changes);
-      return `Updated sleep to wake ${next.wakeTime} / bedtime ${next.bedtime}.`;
+      return `Updated sleep window → bed ${next.bedtime} / wake ${next.wakeTime} (${hours}h sleep).`;
     }
 
     if (/protect peak|peak window|deep work/.test(text)) {
