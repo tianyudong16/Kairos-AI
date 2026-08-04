@@ -6,6 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import { sleepDurationHours } from '@/lib/schedule';
@@ -237,25 +238,17 @@ export default function ProfileScreen() {
   };
 
   return (
-    <AppShell>
+    <AppShell footer={<FloatingTabBar />}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
         <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={() => router.back()}
-            style={styles.backBtn}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.ink} />
-          </Pressable>
           <Text style={styles.brand}>Kairos AI</Text>
-          <Text style={styles.title}>Profile</Text>
+          <Text style={styles.title}>Your profile</Text>
           <Text style={styles.subtitle}>
-            Your account and rhythm preferences in one place.
+            Account details, appearance, and rhythm preferences.
           </Text>
         </Animated.View>
 
@@ -343,6 +336,8 @@ export default function ProfileScreen() {
         </View>
 
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open sleep and category settings"
           onPress={() => router.push('/(tabs)/settings')}
           style={styles.linkRow}
         >

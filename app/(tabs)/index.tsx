@@ -40,14 +40,29 @@ export default function DashboardScreen() {
       color: c.inkMuted,
     },
     avatar: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
+      alignItems: 'center' as const,
+      gap: 4,
+      minWidth: 56,
+    },
+    avatarCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
       borderWidth: 1.5,
-      borderColor: c.lineStrong,
-      backgroundColor: c.bgElevated,
+      borderColor: c.work,
+      backgroundColor: c.workSoft,
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
+    },
+    avatarInitials: {
+      fontFamily: fonts.bold,
+      fontSize: 14,
+      color: c.work,
+    },
+    avatarLabel: {
+      fontFamily: fonts.semibold,
+      fontSize: 11,
+      color: c.work,
     },
     dayNav: {
       flexDirection: 'row' as const,
@@ -200,7 +215,17 @@ export default function DashboardScreen() {
           onPress={() => router.push('/profile')}
           style={styles.avatar}
         >
-          <Ionicons name="person-outline" size={20} color={colors.inkSoft} />
+          <View style={styles.avatarCircle}>
+            <Text style={styles.avatarInitials}>
+              {(user?.name || 'You')
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part) => part[0]?.toUpperCase() || '')
+                .join('') || 'Y'}
+            </Text>
+          </View>
+          <Text style={styles.avatarLabel}>Profile</Text>
         </Pressable>
       </Animated.View>
 

@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 
-/** Simpler IA: Today · Calendar · Add · Coach (Insights/Settings live inside pages) */
+/** Simpler IA: Today · Calendar · Add · Coach · You */
 const items = [
   {
     key: 'home',
@@ -34,6 +34,13 @@ const items = [
     icon: 'flash-outline' as const,
     href: '/(tabs)/coach',
     activeKey: 'coach' as const,
+  },
+  {
+    key: 'profile',
+    label: 'You',
+    icon: 'person-outline' as const,
+    href: '/profile',
+    activeKey: 'profile' as const,
   },
 ];
 
@@ -128,9 +135,14 @@ export function FloatingTabBar() {
           !pathname.includes('analytics') &&
           !pathname.includes('coach') &&
           !pathname.includes('settings') &&
+          !pathname.includes('profile') &&
+          !pathname.includes('login') &&
           !pathname.includes('ai-input') &&
           !pathname.includes('onboarding'))
       );
+    }
+    if (key === 'profile') {
+      return pathname.includes('profile');
     }
     return pathname.includes(key);
   };
@@ -161,7 +173,9 @@ export function FloatingTabBar() {
                 ? colors.calendar
                 : item.activeKey === 'coach'
                   ? colors.coach
-                  : colors.ink;
+                  : item.activeKey === 'profile'
+                    ? colors.work
+                    : colors.ink;
           return (
             <Pressable
               key={item.key}

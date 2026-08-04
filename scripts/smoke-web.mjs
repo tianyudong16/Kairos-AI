@@ -15,8 +15,11 @@ async function main() {
   await page.goto(base, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
 
-  await check(results, 'login screen', (await page.getByText('Welcome back').count()) > 0);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await check(results, 'login screen', (await page.getByText('Create your account').count()) > 0);
+  await page.getByLabel('Full name').fill('Maya Chen');
+  await page.getByLabel('Email').fill('maya@kairos.app');
+  await page.getByLabel('Password').fill('kairos');
+  await page.getByRole('button', { name: 'Create account' }).click();
   await page.waitForTimeout(600);
 
   await page.getByRole('button', { name: /Continue/i }).click();
@@ -27,8 +30,12 @@ async function main() {
 
   await page.getByRole('button', { name: 'Open profile' }).click();
   await page.waitForTimeout(500);
-  await check(results, 'profile page', (await page.getByText('Rhythm snapshot').count()) > 0);
-  await page.getByRole('button', { name: 'Back' }).click();
+  await check(results, 'profile page', (await page.getByText('Your profile').count()) > 0);
+  await check(results, 'profile details', (await page.getByText('Maya Chen').count()) > 0);
+  await page.getByRole('button', { name: 'You' }).click();
+  await page.waitForTimeout(400);
+  await check(results, 'you tab', (await page.getByText('Rhythm snapshot').count()) > 0);
+  await page.getByRole('button', { name: 'Today' }).click();
   await page.waitForTimeout(400);
 
   await page.getByRole('button', { name: /Add task/i }).click();
@@ -57,7 +64,7 @@ async function main() {
   await page.getByRole('button', { name: /^Schedule\b/ }).click();
   await page.waitForTimeout(800);
 
-  await page.goto(`${base}/coach`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Coach' }).click();
   await page.waitForTimeout(700);
   await page.getByText('Add a 20m reset in the afternoon').click();
   await page.waitForTimeout(700);
@@ -77,6 +84,11 @@ async function main() {
     (await page.getByText(/Set sleep need to 8h/i).count()) > 0
   );
 
+  await check(
+    results,
+    'nav you tab',
+    (await page.getByRole('button', { name: 'You' }).count()) > 0
+  );
   await check(results, 'nav today', (await page.getByRole('button', { name: 'Today' }).count()) > 0);
   await check(
     results,
@@ -84,7 +96,13 @@ async function main() {
     (await page.getByRole('button', { name: 'Insights' }).count()) === 0
   );
 
-  await page.goto(`${base}/settings`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'You' }).click();
+  await page.waitForTimeout(500);
+  const settingsLink = page
+    .getByText('Open sleep & category settings')
+    .filter({ visible: true });
+  await settingsLink.scrollIntoViewIfNeeded();
+  await settingsLink.click();
   await page.waitForTimeout(700);
   await check(results, 'settings categories', (await page.getByText('Categories').count()) > 0);
   await page.getByRole('button', { name: /Switch to dark mode/i }).click();
@@ -102,8 +120,14 @@ async function main() {
   await page.getByText('Create', { exact: true }).click();
   await page.waitForTimeout(400);
   await check(results, 'custom category', (await page.getByText('CREATIVE').count()) > 0);
+  // Close category modal if still open so tab bar is clickable
+  const closeModal = page.getByRole('button', { name: /close/i });
+  if ((await closeModal.count()) > 0) {
+    await closeModal.first().click();
+    await page.waitForTimeout(300);
+  }
 
-  await page.goto(`${base}/calendar`, { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: 'Calendar' }).click();
   await page.waitForTimeout(700);
   await check(
     results,

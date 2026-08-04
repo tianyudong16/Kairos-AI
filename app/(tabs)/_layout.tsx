@@ -1,11 +1,13 @@
-import { Tabs } from 'expo-router';
+import { Tabs, Redirect } from 'expo-router';
 import { View } from 'react-native';
 
 import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
 import { AppShell } from '@/components/ui/AppShell';
+import { useApp } from '@/context/AppContext';
 import { useThemedStyles } from '@/constants/theme';
 
 export default function TabLayout() {
+  const { isAuthenticated, onboarded } = useApp();
   const styles = useThemedStyles((colors) => ({
     tabsRoot: {
       flex: 1,
@@ -15,6 +17,13 @@ export default function TabLayout() {
       flex: 1,
     },
   }));
+
+  if (!isAuthenticated) {
+    return <Redirect href="/login" />;
+  }
+  if (!onboarded) {
+    return <Redirect href="/onboarding" />;
+  }
 
   return (
     <AppShell footer={<FloatingTabBar />}>

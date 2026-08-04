@@ -21,7 +21,14 @@ type Mode = 'signin' | 'signup';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const { signIn, signInAsGuest, onboarded } = useApp();
+  const [mode, setMode] = useState<Mode>('signup');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
   const styles = useThemedStyles((c) => ({
     flex: { flex: 1 },
     content: {
@@ -71,11 +78,17 @@ export default function LoginScreen() {
       backgroundColor: c.bg,
     },
     modeChipActive: {
-      backgroundColor: c.ink,
-      borderColor: c.ink,
+      backgroundColor: c.today,
+      borderColor: c.today,
     },
     modeText: { fontFamily: fonts.semibold, color: c.ink },
     modeTextActive: { color: c.white },
+    fieldLabel: {
+      fontFamily: fonts.semibold,
+      fontSize: 12,
+      color: c.inkSoft,
+      marginBottom: -4,
+    },
     input: {
       borderRadius: radii.md,
       borderWidth: 1.5,
@@ -92,41 +105,33 @@ export default function LoginScreen() {
       fontSize: 13,
       color: c.alert,
     },
-    demoHint: {
+    hint: {
       fontFamily: fonts.body,
       fontSize: 12,
       color: c.inkMuted,
       lineHeight: 17,
     },
-    guestBtn: {
+    guestLink: {
       alignSelf: 'center' as const,
-      flexDirection: 'row' as const,
-      alignItems: 'center' as const,
-      gap: 8,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      borderRadius: radii.pill,
-      borderWidth: 1,
-      borderColor: c.lineStrong,
-      backgroundColor: 'rgba(255,252,245,0.7)',
+      paddingVertical: 8,
     },
     guestText: {
-      fontFamily: fonts.semibold,
-      color: c.ink,
+      fontFamily: fonts.medium,
+      fontSize: 13,
+      color: c.inkMuted,
+      textDecorationLine: 'underline' as const,
     },
   }));
-  const { signIn, signInAsGuest, onboarded } = useApp();
-  const [mode, setMode] = useState<Mode>('signin');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('maya@kairos.app');
-  const [password, setPassword] = useState('kairos');
-  const [error, setError] = useState<string | null>(null);
 
   const goNext = () => {
     router.replace(onboarded ? '/(tabs)' : '/onboarding');
   };
 
   const submit = () => {
+    if (mode === 'signup' && !name.trim()) {
+      setError('Enter your name to create an account');
+      return;
+    }
     const result = signIn({
       email,
       password,
@@ -146,9 +151,15 @@ export default function LoginScreen() {
     goNext();
   };
 
+  const gradientColors = (
+    isDark
+      ? [colors.bg, colors.bgElevated, colors.coachSoft]
+      : [colors.bg, colors.todaySoft, colors.coachSoft]
+  ) as [string, string, string];
+
   return (
     <LinearGradient
-      colors={['#F7F1E4', '#E8F0EA', '#F4F0E6']}
+      colors={gradientColors}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.flex}
@@ -168,17 +179,19 @@ export default function LoginScreen() {
               {mode === 'signin' ? 'Welcome back' : 'Create your account'}
             </Text>
             <Text style={styles.subhead}>
-              Plan around your energy peaks — sign in to keep your profile, chronotype, and
-              schedule together.
+              Enter your details to personalize your energy schedule, chronotype, and
+              profile.
             </Text>
           </Animated.View>
 
           <Animated.View entering={FadeInDown.delay(80)} style={styles.card}>
             <View style={styles.modeRow}>
-              {([
-                { id: 'signin', label: 'Sign in' },
-                { id: 'signup', label: 'Sign up' },
-              ] as const).map((item) => (
+              {(
+                [
+                  { id: 'signup', label: 'Sign up' },
+                  { id: 'signin', label: 'Sign in' },
+                ] as const
+              ).map((item) => (
                 <Pressable
                   key={item.id}
                   accessibilityRole="button"
@@ -204,35 +217,48 @@ export default function LoginScreen() {
             </View>
 
             {mode === 'signup' ? (
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                placeholder="Your name"
-                placeholderTextColor={colors.inkMuted}
-                style={styles.input}
-                autoCapitalize="words"
-              />
+              <View style={{ gap: 8 }}>
+                <Text style={styles.fieldLabel}>Full name</Text>
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="e.g. Maya Chen"
+                  placeholderTextColor={colors.inkMuted}
+                  style={styles.input}
+                  autoCapitalize="words"
+                  accessibilityLabel="Full name"
+                />
+              </View>
             ) : null}
 
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="Email"
-              placeholderTextColor={colors.inkMuted}
-              style={styles.input}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-            />
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Password"
-              placeholderTextColor={colors.inkMuted}
-              style={styles.input}
-              secureTextEntry
-              autoComplete={mode === 'signin' ? 'password' : 'new-password'}
-            />
+            <View style={{ gap: 8 }}>
+              <Text style={styles.fieldLabel}>Email</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@email.com"
+                placeholderTextColor={colors.inkMuted}
+                style={styles.input}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                accessibilityLabel="Email"
+              />
+            </View>
+
+            <View style={{ gap: 8 }}>
+              <Text style={styles.fieldLabel}>Password</Text>
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="At least 4 characters"
+                placeholderTextColor={colors.inkMuted}
+                style={styles.input}
+                secureTextEntry
+                autoComplete={mode === 'signin' ? 'password' : 'new-password'}
+                accessibilityLabel="Password"
+              />
+            </View>
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -241,8 +267,8 @@ export default function LoginScreen() {
               onPress={submit}
             />
 
-            <Text style={styles.demoHint}>
-              Prototype login — any email + 4+ character password works. Demo is prefilled.
+            <Text style={styles.hint}>
+              Prototype auth — your details stay on this device for the session.
             </Text>
           </Animated.View>
 
@@ -250,10 +276,9 @@ export default function LoginScreen() {
             accessibilityRole="button"
             accessibilityLabel="Continue as guest"
             onPress={guest}
-            style={styles.guestBtn}
+            style={styles.guestLink}
           >
-            <Ionicons name="person-outline" size={18} color={colors.ink} />
-            <Text style={styles.guestText}>Continue as guest</Text>
+            <Text style={styles.guestText}>Continue without an account</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
