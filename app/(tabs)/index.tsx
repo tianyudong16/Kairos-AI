@@ -24,6 +24,7 @@ export default function DashboardScreen() {
     deleteTask,
     updateTask,
     optimizeSchedule,
+    user,
   } = useApp();
 
   return (
@@ -34,16 +35,18 @@ export default function DashboardScreen() {
       <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
         <View style={styles.headerText}>
           <Text style={styles.brand}>Kairos AI</Text>
-          <Text style={styles.greeting}>Good morning</Text>
+          <Text style={styles.greeting}>
+            Good morning{user?.name && !user.isGuest ? `, ${user.name.split(' ')[0]}` : ''}
+          </Text>
           <Text style={styles.date}>{formatDisplayDate(selectedDate)}</Text>
         </View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Open settings"
-          onPress={() => router.push('/(tabs)/settings')}
+          accessibilityLabel="Open profile"
+          onPress={() => router.push('/profile')}
           style={styles.avatar}
         >
-          <Ionicons name="settings-outline" size={20} color={colors.inkSoft} />
+          <Ionicons name="person-outline" size={20} color={colors.inkSoft} />
         </Pressable>
       </Animated.View>
 

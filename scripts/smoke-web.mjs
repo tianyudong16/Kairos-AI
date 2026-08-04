@@ -15,11 +15,21 @@ async function main() {
   await page.goto(base, { waitUntil: 'networkidle' });
   await page.waitForTimeout(1000);
 
+  await check(results, 'login screen', (await page.getByText('Welcome back').count()) > 0);
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.waitForTimeout(600);
+
   await page.getByRole('button', { name: /Continue/i }).click();
   await page.waitForTimeout(400);
   await page.getByRole('button', { name: /Start planning/i }).click();
   await page.waitForTimeout(800);
   await check(results, 'dashboard', (await page.getByText('Today’s schedule').count()) > 0);
+
+  await page.getByRole('button', { name: 'Open profile' }).click();
+  await page.waitForTimeout(500);
+  await check(results, 'profile page', (await page.getByText('Rhythm snapshot').count()) > 0);
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.waitForTimeout(400);
 
   await page.getByRole('button', { name: /Add task/i }).click();
   await page.waitForTimeout(700);

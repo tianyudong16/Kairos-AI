@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
@@ -33,7 +33,14 @@ const bedOptions = ['21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '0:00'
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { chronotype, setChronotype, sleep, setSleep, completeOnboarding } = useApp();
+  const {
+    chronotype,
+    setChronotype,
+    sleep,
+    setSleep,
+    completeOnboarding,
+    isAuthenticated,
+  } = useApp();
   const [step, setStep] = useState<1 | 2>(1);
 
   const [customWake, setCustomWake] = useState(false);
@@ -42,6 +49,12 @@ export default function OnboardingScreen() {
   const [bedDraft, setBedDraft] = useState(sleep.bedtime);
   const [wakeError, setWakeError] = useState<string | null>(null);
   const [bedError, setBedError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      router.replace('/login');
+    }
+  }, [isAuthenticated, router]);
 
   const wakeIsPreset = useMemo(
     () => wakeOptions.includes(sleep.wakeTime),

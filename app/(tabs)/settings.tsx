@@ -7,6 +7,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 import { CategoryEditModal } from '@/components/ui/CategoryEditModal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -18,6 +20,7 @@ const wakeOptions = ['5:30', '6:30', '7:00', '7:30', '8:00', '9:00', '10:00'];
 const bedOptions = ['21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '0:00', '1:00'];
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const {
     sleep,
     setSleep,
@@ -26,6 +29,7 @@ export default function SettingsScreen() {
     optimizeSchedule,
     selectedDate,
     categories,
+    user,
   } = useApp();
 
   const wakeIsPreset = useMemo(
@@ -57,6 +61,17 @@ export default function SettingsScreen() {
       <Text style={styles.subtitle}>
         Personalize sleep, chronotype, and categories — schedule adapts around your capacity.
       </Text>
+
+      <Pressable onPress={() => router.push('/profile')} style={styles.profileLink}>
+        <View style={styles.profileIcon}>
+          <Ionicons name="person-outline" size={18} color={colors.white} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.profileName}>{user?.name || 'Your profile'}</Text>
+          <Text style={styles.profileEmail}>{user?.email || 'Open account'}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </Pressable>
 
       <Text style={styles.section}>Chronotype</Text>
       <View style={styles.chipRow}>
@@ -268,6 +283,26 @@ const styles = StyleSheet.create({
   brand: { fontFamily: fonts.brandItalic, fontSize: 24, color: colors.ink },
   title: { fontFamily: fonts.bold, fontSize: 28, color: colors.ink },
   subtitle: { fontFamily: fonts.body, fontSize: 14, color: colors.inkMuted, lineHeight: 20 },
+  profileLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.bgElevated,
+    padding: 12,
+  },
+  profileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileName: { fontFamily: fonts.semibold, color: colors.ink },
+  profileEmail: { fontFamily: fonts.body, fontSize: 12, color: colors.inkMuted },
   section: {
     fontFamily: fonts.semibold,
     fontSize: 14,

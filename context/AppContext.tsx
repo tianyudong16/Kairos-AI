@@ -29,7 +29,20 @@ export type { Category, CategoryDef, Chronotype, DraftTask, Priority, SleepSched
 type CoachMessage = { id: string; role: 'ai' | 'user'; text: string };
 type CoachChange = { id: string; label: string; detail: string };
 
+export type UserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  isGuest: boolean;
+};
+
 type AppContextValue = {
+  user: UserProfile | null;
+  isAuthenticated: boolean;
+  signIn: (input: { email: string; password: string; name?: string }) => string | null;
+  signInAsGuest: () => void;
+  updateProfile: (patch: Partial<Pick<UserProfile, 'name' | 'email'>>) => void;
+  signOut: () => void;
   onboarded: boolean;
   chronotype: Chronotype | null;
   setChronotype: (value: Chronotype) => void;
@@ -211,6 +224,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const defaults = chronotypeDefaults('morning');
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [onboarded, setOnboarded] = useState(false);
   const [chronotype, setChronotypeState] = useState<Chronotype | null>('morning');
   const [sleep, setSleep] = useState<SleepSchedule>(defaults.sleep);
@@ -645,6 +659,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppContextValue>(
     () => ({
+      user,
+      isAuthenticated: !!user,
+      signIn: ({ email, password, name }) => {
+        const trimmedEmail = email.trim().toLowerCase();
+        if (!trimmedEmail || !trimmedEmail.includes('@')) {
+          return 'Enter a valid email address';
+        }
+        if (!password || password.length < 4) {
+          return 'Password needs at least 4 characters';
+        }
+        const derivedName =
+          name?.trim() ||
+          trimmedEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        setUser({
+          id: `u-${Date.now()}`,
+          name: derivedName || 'Kairos User',
+          email: trimmedEmail,
+          isGuest: false,
+        });
+        return null;
+      },
+      signInAsGuest: () => {
+        setUser({
+          id: `guest-${Date.now()}`,
+          name: 'Guest',
+          email: 'guest@kairos.app',
+          isGuest: true,
+        });
+      },
+      updateProfile: (patch) => {
+        setUser((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            name: patch.name !== undefined ? patch.name.trim() || prev.name : prev.name,
+            email:
+              patch.email !== undefined
+                ? patch.email.trim().toLowerCase() || prev.email
+                : prev.email,
+          };
+        });
+      },
+      signOut: () => {
+        setUser(null);
+        setOnboarded(false);
+      },
       onboarded,
       chronotype,
       setChronotype: (valueChronotype) => {
@@ -808,6 +868,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       capacitySummary,
     }),
     [
+      user,
       onboarded,
       chronotype,
       sleep,
