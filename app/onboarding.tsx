@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -14,7 +13,7 @@ import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { Chronotype, useApp } from '@/context/AppContext';
-import { colors, fonts, radii } from '@/constants/theme';
+import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import { normalizeTimeInput } from '@/lib/schedule';
 
 const chronotypeOptions: {
@@ -33,6 +32,160 @@ const bedOptions = ['21:00', '21:30', '22:00', '22:30', '23:00', '23:30', '0:00'
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles((c) => ({
+    progress: {
+      flexDirection: 'row' as const,
+      justifyContent: 'center' as const,
+      gap: 8,
+      marginBottom: 16,
+    },
+    dot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: c.lineStrong,
+    },
+    dotActive: {
+      backgroundColor: c.ink,
+      width: 22,
+    },
+    content: {
+      gap: 14,
+      paddingBottom: 16,
+    },
+    brand: {
+      fontFamily: fonts.brandItalic,
+      fontSize: 28,
+      color: c.ink,
+    },
+    title: {
+      fontFamily: fonts.bold,
+      fontSize: 24,
+      color: c.ink,
+      lineHeight: 30,
+    },
+    subtitle: {
+      fontFamily: fonts.body,
+      fontSize: 15,
+      color: c.inkSoft,
+      lineHeight: 22,
+      marginBottom: 8,
+    },
+    list: {
+      gap: 10,
+    },
+    option: {
+      minHeight: 54,
+      borderRadius: radii.md,
+      borderWidth: 1.5,
+      borderColor: c.lineStrong,
+      backgroundColor: c.bgElevated,
+      paddingHorizontal: 16,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 12,
+    },
+    optionSelected: {
+      backgroundColor: c.ink,
+      borderColor: c.ink,
+    },
+    optionLabel: {
+      fontFamily: fonts.medium,
+      fontSize: 15,
+      color: c.ink,
+      flex: 1,
+    },
+    optionLabelSelected: {
+      color: c.white,
+    },
+    section: {
+      fontFamily: fonts.semibold,
+      fontSize: 14,
+      color: c.ink,
+      marginTop: 8,
+    },
+    chipRow: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: 8,
+    },
+    chip: {
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+      backgroundColor: c.bgElevated,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    chipSelected: {
+      backgroundColor: c.ink,
+      borderColor: c.ink,
+    },
+    otherChip: {
+      borderStyle: 'dashed' as const,
+      borderColor: c.energy,
+      backgroundColor: c.lifeSoft,
+    },
+    otherChipSelected: {
+      backgroundColor: c.energy,
+      borderStyle: 'solid' as const,
+      borderColor: c.energy,
+    },
+    chipText: {
+      fontFamily: fonts.medium,
+      fontSize: 13,
+      color: c.ink,
+    },
+    chipTextSelected: {
+      color: c.white,
+    },
+    otherChipTextSelected: {
+      color: c.white,
+      fontFamily: fonts.semibold,
+    },
+    customBox: {
+      gap: 6,
+      marginTop: 4,
+    },
+    customLabel: {
+      fontFamily: fonts.medium,
+      fontSize: 12,
+      color: c.inkSoft,
+    },
+    customInput: {
+      borderRadius: radii.md,
+      borderWidth: 1.5,
+      borderColor: c.energy,
+      backgroundColor: c.bgElevated,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontFamily: fonts.body,
+      fontSize: 15,
+      color: c.ink,
+    },
+    error: {
+      fontFamily: fonts.medium,
+      fontSize: 12,
+      color: c.alert,
+    },
+    summary: {
+      marginTop: 16,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 8,
+      backgroundColor: c.lifeSoft,
+      borderRadius: radii.md,
+      padding: 12,
+    },
+    summaryText: {
+      fontFamily: fonts.semibold,
+      color: c.ink,
+    },
+    footer: {
+      marginTop: 8,
+    },
+  }));
   const {
     chronotype,
     setChronotype,
@@ -312,157 +465,3 @@ export default function OnboardingScreen() {
     </AppShell>
   );
 }
-
-const styles = StyleSheet.create({
-  progress: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.lineStrong,
-  },
-  dotActive: {
-    backgroundColor: colors.ink,
-    width: 22,
-  },
-  content: {
-    gap: 14,
-    paddingBottom: 16,
-  },
-  brand: {
-    fontFamily: fonts.brandItalic,
-    fontSize: 28,
-    color: colors.ink,
-  },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 24,
-    color: colors.ink,
-    lineHeight: 30,
-  },
-  subtitle: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: colors.inkSoft,
-    lineHeight: 22,
-    marginBottom: 8,
-  },
-  list: {
-    gap: 10,
-  },
-  option: {
-    minHeight: 54,
-    borderRadius: radii.md,
-    borderWidth: 1.5,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.bgElevated,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  optionSelected: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
-  },
-  optionLabel: {
-    fontFamily: fonts.medium,
-    fontSize: 15,
-    color: colors.ink,
-    flex: 1,
-  },
-  optionLabelSelected: {
-    color: colors.white,
-  },
-  section: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: colors.ink,
-    marginTop: 8,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  chip: {
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.bgElevated,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  chipSelected: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
-  },
-  otherChip: {
-    borderStyle: 'dashed',
-    borderColor: colors.energy,
-    backgroundColor: colors.lifeSoft,
-  },
-  otherChipSelected: {
-    backgroundColor: colors.energy,
-    borderStyle: 'solid',
-    borderColor: colors.energy,
-  },
-  chipText: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: colors.ink,
-  },
-  chipTextSelected: {
-    color: colors.white,
-  },
-  otherChipTextSelected: {
-    color: colors.white,
-    fontFamily: fonts.semibold,
-  },
-  customBox: {
-    gap: 6,
-    marginTop: 4,
-  },
-  customLabel: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.inkSoft,
-  },
-  customInput: {
-    borderRadius: radii.md,
-    borderWidth: 1.5,
-    borderColor: colors.energy,
-    backgroundColor: colors.bgElevated,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: colors.ink,
-  },
-  error: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.alert,
-  },
-  summary: {
-    marginTop: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.lifeSoft,
-    borderRadius: radii.md,
-    padding: 12,
-  },
-  summaryText: {
-    fontFamily: fonts.semibold,
-    color: colors.ink,
-  },
-  footer: {
-    marginTop: 8,
-  },
-});

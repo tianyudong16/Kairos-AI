@@ -1,6 +1,6 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
-import { colors, fonts, radii } from '@/constants/theme';
+import { fonts, radii, useThemedStyles } from '@/constants/theme';
 
 const bars = [
   { label: '6a', value: 0.25 },
@@ -12,6 +12,53 @@ const bars = [
 ];
 
 export function CircadianChart() {
+  const styles = useThemedStyles((c) => ({
+    card: {
+      backgroundColor: c.bgElevated,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: c.line,
+      padding: 16,
+      gap: 14,
+    },
+    title: {
+      fontFamily: fonts.bold,
+      fontSize: 12,
+      letterSpacing: 1.2,
+      color: c.inkSoft,
+    },
+    chart: {
+      height: 140,
+      flexDirection: 'row' as const,
+      alignItems: 'flex-end' as const,
+      justifyContent: 'space-between' as const,
+      gap: 8,
+    },
+    col: {
+      flex: 1,
+      alignItems: 'center' as const,
+      gap: 8,
+    },
+    track: {
+      width: '70%',
+      height: 110,
+      borderRadius: radii.sm,
+      backgroundColor: c.line,
+      justifyContent: 'flex-end' as const,
+      overflow: 'hidden' as const,
+    },
+    fill: {
+      width: '100%',
+      backgroundColor: c.ink,
+      borderRadius: radii.sm,
+    },
+    label: {
+      fontFamily: fonts.medium,
+      fontSize: 11,
+      color: c.inkMuted,
+    },
+  }));
+
   return (
     <View style={styles.card}>
       <Text style={styles.title}>CIRCADIAN CURVE</Text>
@@ -28,50 +75,3 @@ export function CircadianChart() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: 16,
-    gap: 14,
-  },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 12,
-    letterSpacing: 1.2,
-    color: colors.inkSoft,
-  },
-  chart: {
-    height: 140,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  col: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 8,
-  },
-  track: {
-    width: '70%',
-    height: 110,
-    borderRadius: radii.sm,
-    backgroundColor: colors.line,
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
-  },
-  fill: {
-    width: '100%',
-    backgroundColor: colors.ink,
-    borderRadius: radii.sm,
-  },
-  label: {
-    fontFamily: fonts.medium,
-    fontSize: 11,
-    color: colors.inkMuted,
-  },
-});

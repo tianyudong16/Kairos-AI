@@ -7,7 +7,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -16,12 +15,106 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
-import { colors, fonts, radii } from '@/constants/theme';
+import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 
 type Mode = 'signin' | 'signup';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles((c) => ({
+    flex: { flex: 1 },
+    content: {
+      flexGrow: 1,
+      justifyContent: 'center' as const,
+      paddingHorizontal: 24,
+      paddingVertical: 40,
+      gap: 20,
+      maxWidth: 480,
+      width: '100%',
+      alignSelf: 'center' as const,
+    },
+    hero: { gap: 10 },
+    brand: {
+      fontFamily: fonts.brandItalic,
+      fontSize: 36,
+      color: c.ink,
+    },
+    headline: {
+      fontFamily: fonts.bold,
+      fontSize: 28,
+      color: c.ink,
+    },
+    subhead: {
+      fontFamily: fonts.body,
+      fontSize: 15,
+      lineHeight: 22,
+      color: c.inkMuted,
+      maxWidth: 360,
+    },
+    card: {
+      borderRadius: radii.xl,
+      backgroundColor: c.bgElevated,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+      padding: 18,
+      gap: 12,
+    },
+    modeRow: { flexDirection: 'row' as const, gap: 8 },
+    modeChip: {
+      flex: 1,
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+      paddingVertical: 10,
+      alignItems: 'center' as const,
+      backgroundColor: c.bg,
+    },
+    modeChipActive: {
+      backgroundColor: c.ink,
+      borderColor: c.ink,
+    },
+    modeText: { fontFamily: fonts.semibold, color: c.ink },
+    modeTextActive: { color: c.white },
+    input: {
+      borderRadius: radii.md,
+      borderWidth: 1.5,
+      borderColor: c.lineStrong,
+      backgroundColor: c.bg,
+      paddingHorizontal: 14,
+      paddingVertical: 14,
+      fontFamily: fonts.body,
+      fontSize: 15,
+      color: c.ink,
+    },
+    error: {
+      fontFamily: fonts.medium,
+      fontSize: 13,
+      color: c.alert,
+    },
+    demoHint: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: c.inkMuted,
+      lineHeight: 17,
+    },
+    guestBtn: {
+      alignSelf: 'center' as const,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+      backgroundColor: 'rgba(255,252,245,0.7)',
+    },
+    guestText: {
+      fontFamily: fonts.semibold,
+      color: c.ink,
+    },
+  }));
   const { signIn, signInAsGuest, onboarded } = useApp();
   const [mode, setMode] = useState<Mode>('signin');
   const [name, setName] = useState('');
@@ -167,97 +260,3 @@ export default function LoginScreen() {
     </LinearGradient>
   );
 }
-
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  content: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 40,
-    gap: 20,
-    maxWidth: 480,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  hero: { gap: 10 },
-  brand: {
-    fontFamily: fonts.brandItalic,
-    fontSize: 36,
-    color: colors.ink,
-  },
-  headline: {
-    fontFamily: fonts.bold,
-    fontSize: 28,
-    color: colors.ink,
-  },
-  subhead: {
-    fontFamily: fonts.body,
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.inkMuted,
-    maxWidth: 360,
-  },
-  card: {
-    borderRadius: radii.xl,
-    backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    padding: 18,
-    gap: 12,
-  },
-  modeRow: { flexDirection: 'row', gap: 8 },
-  modeChip: {
-    flex: 1,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    paddingVertical: 10,
-    alignItems: 'center',
-    backgroundColor: colors.bg,
-  },
-  modeChipActive: {
-    backgroundColor: colors.ink,
-    borderColor: colors.ink,
-  },
-  modeText: { fontFamily: fonts.semibold, color: colors.ink },
-  modeTextActive: { color: colors.white },
-  input: {
-    borderRadius: radii.md,
-    borderWidth: 1.5,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: colors.ink,
-  },
-  error: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: colors.alert,
-  },
-  demoHint: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: colors.inkMuted,
-    lineHeight: 17,
-  },
-  guestBtn: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    backgroundColor: 'rgba(255,252,245,0.7)',
-  },
-  guestText: {
-    fontFamily: fonts.semibold,
-    color: colors.ink,
-  },
-});

@@ -28,12 +28,12 @@ export function PrimaryButton({
       }),
     },
     primary: {
-      backgroundColor: colors.black,
+      backgroundColor: colors.today,
     },
     secondary: {
       backgroundColor: colors.bgElevated,
       borderWidth: 1.5,
-      borderColor: colors.ink,
+      borderColor: colors.work,
     },
     pressed: {
       opacity: 0.9,

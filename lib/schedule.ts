@@ -155,6 +155,19 @@ export function formatDisplayDate(key: string) {
   });
 }
 
+export function isToday(key: string) {
+  return key === toDateKey(new Date());
+}
+
+export function formatShortDate(key: string) {
+  const date = parseDateKey(key);
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 export function timeToMinutes(time: string) {
   const [h, m] = time.split(':').map(Number);
   return h * 60 + m;

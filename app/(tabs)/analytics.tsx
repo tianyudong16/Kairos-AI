@@ -1,16 +1,95 @@
 import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { CircadianChart } from '@/components/analytics/CircadianChart';
 import { FocusRing } from '@/components/analytics/FocusRing';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
-import { colors, fonts, radii } from '@/constants/theme';
+import { fonts, radii, useThemedStyles } from '@/constants/theme';
 
 export default function AnalyticsScreen() {
   const router = useRouter();
   const { capacitySummary, tasksForSelectedDate, sleep } = useApp();
+  const styles = useThemedStyles((c) => ({
+    content: {
+      gap: 16,
+      paddingBottom: 20,
+    },
+    brand: {
+      fontFamily: fonts.brandItalic,
+      fontSize: 24,
+      color: c.ink,
+    },
+    title: {
+      fontFamily: fonts.bold,
+      fontSize: 28,
+      color: c.ink,
+      marginTop: 2,
+    },
+    subtitle: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: c.inkMuted,
+      marginTop: 4,
+    },
+    scoreCard: {
+      backgroundColor: c.bgElevated,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: c.line,
+      padding: 18,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+    },
+    scoreCopy: {
+      gap: 4,
+      flex: 1,
+      paddingRight: 12,
+    },
+    scoreLabel: {
+      fontFamily: fonts.medium,
+      fontSize: 13,
+      color: c.inkMuted,
+    },
+    scoreValue: {
+      fontFamily: fonts.bold,
+      fontSize: 30,
+      color: c.ink,
+    },
+    scoreHint: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: c.inkSoft,
+    },
+    grid: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: 10,
+    },
+    metric: {
+      width: '48%',
+      flexGrow: 1,
+      backgroundColor: c.bgElevated,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: c.line,
+      padding: 14,
+      gap: 6,
+      minWidth: 140,
+    },
+    metricLabel: {
+      fontFamily: fonts.medium,
+      fontSize: 13,
+      color: c.inkMuted,
+    },
+    metricValue: {
+      fontFamily: fonts.bold,
+      fontSize: 22,
+      color: c.ink,
+    },
+  }));
   const scheduledHours =
     Math.round(
       (tasksForSelectedDate.reduce((sum, t) => sum + t.durationMinutes, 0) / 60) *
@@ -89,83 +168,3 @@ export default function AnalyticsScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    gap: 16,
-    paddingBottom: 20,
-  },
-  brand: {
-    fontFamily: fonts.brandItalic,
-    fontSize: 24,
-    color: colors.ink,
-  },
-  title: {
-    fontFamily: fonts.bold,
-    fontSize: 28,
-    color: colors.ink,
-    marginTop: 2,
-  },
-  subtitle: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.inkMuted,
-    marginTop: 4,
-  },
-  scoreCard: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  scoreCopy: {
-    gap: 4,
-    flex: 1,
-    paddingRight: 12,
-  },
-  scoreLabel: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: colors.inkMuted,
-  },
-  scoreValue: {
-    fontFamily: fonts.bold,
-    fontSize: 30,
-    color: colors.ink,
-  },
-  scoreHint: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.inkSoft,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  metric: {
-    width: '48%',
-    flexGrow: 1,
-    backgroundColor: colors.bgElevated,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: 14,
-    gap: 6,
-    minWidth: 140,
-  },
-  metricLabel: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: colors.inkMuted,
-  },
-  metricValue: {
-    fontFamily: fonts.bold,
-    fontSize: 22,
-    color: colors.ink,
-  },
-});

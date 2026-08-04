@@ -16,11 +16,16 @@ import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { AppProvider } from '@/context/AppContext';
-import { ThemeProvider } from '@/constants/theme';
+import { ThemeProvider, useTheme } from '@/constants/theme';
 
 export { ErrorBoundary } from 'expo-router';
 
 SplashScreen.preventAutoHideAsync();
+
+function ThemedStatusBar() {
+  const { isDark } = useTheme();
+  return <StatusBar style={isDark ? 'light' : 'dark'} />;
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -49,7 +54,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AppProvider>
-        <StatusBar style="auto" />
+        <ThemedStatusBar />
         <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="login" />

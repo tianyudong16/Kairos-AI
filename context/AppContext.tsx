@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
-import { colors } from '@/constants/theme';
+import { colors, useTheme } from '@/constants/theme';
 import {
   addDays,
   addMinutesToTime,
@@ -223,6 +223,7 @@ const initialTasks: Task[] = [
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { colors: themeColors } = useTheme();
   const defaults = chronotypeDefaults('morning');
   const [user, setUser] = useState<UserProfile | null>(null);
   const [onboarded, setOnboarded] = useState(false);
@@ -239,6 +240,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     },
   ]);
   const [lastCoachChanges, setLastCoachChanges] = useState<CoachChange[]>([]);
+
+  useEffect(() => {
+    const builtInColors: Record<string, { color: string; soft: string }> = {
+      work: { color: themeColors.work, soft: themeColors.workSoft },
+      study: { color: themeColors.study, soft: themeColors.studySoft },
+      health: { color: themeColors.health, soft: themeColors.healthSoft },
+      life: { color: themeColors.life, soft: themeColors.lifeSoft },
+    };
+    setCategories((prev) =>
+      prev.map((cat) => {
+        if (!cat.builtIn) return cat;
+        const next = builtInColors[cat.id];
+        if (!next) return cat;
+        return { ...cat, color: next.color, soft: next.soft };
+      })
+    );
+  }, [themeColors]);
 
   const getCategory = (id: string) =>
     categories.find((c) => c.id === id) ||

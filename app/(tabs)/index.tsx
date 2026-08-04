@@ -1,16 +1,170 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { ScheduleTimeline } from '@/components/dashboard/ScheduleTimeline';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import { addDays, formatDisplayDate } from '@/lib/schedule';
-import { colors, fonts, radii } from '@/constants/theme';
+import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 
 export default function DashboardScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
+  const styles = useThemedStyles((c) => ({
+    content: {
+      paddingBottom: 20,
+      gap: 16,
+    },
+    header: {
+      flexDirection: 'row' as const,
+      justifyContent: 'space-between' as const,
+      alignItems: 'flex-start' as const,
+    },
+    headerText: { gap: 2 },
+    brand: {
+      fontFamily: fonts.brandItalic,
+      fontSize: 26,
+      color: c.ink,
+      marginBottom: 4,
+    },
+    greeting: {
+      fontFamily: fonts.bold,
+      fontSize: 22,
+      color: c.ink,
+    },
+    date: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: c.inkMuted,
+    },
+    avatar: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      borderWidth: 1.5,
+      borderColor: c.lineStrong,
+      backgroundColor: c.bgElevated,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    dayNav: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 8,
+    },
+    dayBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: c.line,
+      backgroundColor: c.bgElevated,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    dayCenter: {
+      flex: 1,
+      height: 36,
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: c.line,
+      backgroundColor: c.bgElevated,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    dayCenterText: {
+      fontFamily: fonts.medium,
+      fontSize: 13,
+      color: c.inkSoft,
+    },
+    energyCard: {
+      backgroundColor: c.bgElevated,
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: c.line,
+      padding: 16,
+      gap: 8,
+    },
+    energyTop: {
+      flexDirection: 'row' as const,
+      justifyContent: 'space-between' as const,
+      alignItems: 'center' as const,
+    },
+    energyLabelRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 6,
+    },
+    energyLabel: {
+      fontFamily: fonts.semibold,
+      fontSize: 14,
+      color: c.ink,
+    },
+    chrono: {
+      fontFamily: fonts.medium,
+      fontSize: 12,
+      color: c.inkMuted,
+    },
+    sleepLine: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: c.inkSoft,
+    },
+    capacityLine: {
+      fontFamily: fonts.medium,
+      fontSize: 12,
+      color: c.inkMuted,
+    },
+    sectionHeader: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      gap: 12,
+    },
+    sectionTitle: {
+      fontFamily: fonts.semibold,
+      fontSize: 16,
+      color: c.ink,
+    },
+    optimizeBtn: {
+      minHeight: 40,
+      paddingHorizontal: 14,
+    },
+    legend: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: 6,
+    },
+    legendItem: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 5,
+      borderRadius: radii.pill,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    legendDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+    },
+    legendText: {
+      fontFamily: fonts.bold,
+      fontSize: 10,
+      letterSpacing: 0.4,
+    },
+    insightsLink: {
+      alignSelf: 'flex-start' as const,
+      paddingVertical: 4,
+    },
+    insightsText: {
+      fontFamily: fonts.semibold,
+      color: c.coach,
+      fontSize: 13,
+    },
+  }));
   const {
     tasksForSelectedDate,
     selectedDate,
@@ -137,157 +291,3 @@ export default function DashboardScreen() {
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  content: {
-    paddingBottom: 20,
-    gap: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerText: { gap: 2 },
-  brand: {
-    fontFamily: fonts.brandItalic,
-    fontSize: 26,
-    color: colors.ink,
-    marginBottom: 4,
-  },
-  greeting: {
-    fontFamily: fonts.bold,
-    fontSize: 22,
-    color: colors.ink,
-  },
-  date: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.inkMuted,
-  },
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1.5,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.bgElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayNav: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dayBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.bgElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayCenter: {
-    flex: 1,
-    height: 36,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.bgElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayCenterText: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: colors.inkSoft,
-  },
-  energyCard: {
-    backgroundColor: colors.bgElevated,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    padding: 16,
-    gap: 8,
-  },
-  energyTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  energyLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  energyLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 14,
-    color: colors.ink,
-  },
-  chrono: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.inkMuted,
-  },
-  sleepLine: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: colors.inkSoft,
-  },
-  capacityLine: {
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.inkMuted,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  sectionTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 16,
-    color: colors.ink,
-  },
-  optimizeBtn: {
-    minHeight: 40,
-    paddingHorizontal: 14,
-  },
-  legend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderRadius: radii.pill,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  legendDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  legendText: {
-    fontFamily: fonts.bold,
-    fontSize: 10,
-    letterSpacing: 0.4,
-  },
-  insightsLink: {
-    alignSelf: 'flex-start',
-    paddingVertical: 4,
-  },
-  insightsText: {
-    fontFamily: fonts.semibold,
-    color: colors.coach,
-    fontSize: 13,
-  },
-});

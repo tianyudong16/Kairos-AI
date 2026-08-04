@@ -1,11 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Platform,
   Pressable,
   ScrollView,
-  StyleSheet,
   Text,
   TextInput,
   View,
@@ -17,14 +16,29 @@ import { CategoryTag } from '@/components/ui/CategoryTag';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { PriorityTag } from '@/components/ui/PriorityTag';
 import { Category, DraftTask, Priority, useApp } from '@/context/AppContext';
-import { colors, fonts, radii } from '@/constants/theme';
-import { formatDuration, parseDuration } from '@/lib/schedule';
+import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
+import {
+  addDays,
+  formatDisplayDate,
+  formatDuration,
+  formatShortDate,
+  isToday,
+  parseDuration,
+  toDateKey,
+} from '@/lib/schedule';
 
 type Mode = 'ai' | 'manual';
 
 export default function AiInputScreen() {
   const router = useRouter();
-  const { addDraftTasks, selectedDate, categories, getCategory } = useApp();
+  const { colors } = useTheme();
+  const {
+    addDraftTasks,
+    selectedDate,
+    setSelectedDate,
+    categories,
+    getCategory,
+  } = useApp();
   const [mode, setMode] = useState<Mode>('manual');
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
@@ -52,6 +66,12 @@ export default function AiInputScreen() {
   const [durationText, setDurationText] = useState('60');
   const [category, setCategory] = useState<Category>('work');
   const [priority, setPriority] = useState<Priority>('high');
+
+  const todayKey = toDateKey(new Date());
+  const dateOptions = useMemo(
+    () => Array.from({ length: 14 }, (_, i) => addDays(todayKey, i)),
+    [todayKey]
+  );
 
   const categoryIds = categories.map((c) => c.id);
   const parsePrompt = () => {
@@ -133,6 +153,249 @@ export default function AiInputScreen() {
     );
   };
 
+  const styles = useThemedStyles((c) => ({
+    topBar: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+      marginBottom: 12,
+    },
+    close: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      backgroundColor: c.bgElevated,
+      borderWidth: 1,
+      borderColor: c.line,
+    },
+    topTitle: {
+      fontFamily: fonts.semibold,
+      fontSize: 15,
+      color: c.inkSoft,
+    },
+    modeRow: { flexDirection: 'row' as const, gap: 8, marginBottom: 12 },
+    modeChip: {
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      backgroundColor: c.bgElevated,
+    },
+    modeChipActive: { backgroundColor: c.ink, borderColor: c.ink },
+    modeText: { fontFamily: fonts.medium, color: c.ink },
+    modeTextActive: { color: c.white },
+    content: { gap: 14, paddingBottom: 20, flexGrow: 1 },
+    brand: { fontFamily: fonts.brandItalic, fontSize: 24, color: c.ink },
+    title: { fontFamily: fonts.bold, fontSize: 26, color: c.ink },
+    subtitle: {
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: c.inkMuted,
+      lineHeight: 20,
+    },
+    dateSection: { gap: 8 },
+    dateLabel: {
+      fontFamily: fonts.semibold,
+      fontSize: 12,
+      color: c.inkSoft,
+      letterSpacing: 0.4,
+      textTransform: 'uppercase' as const,
+    },
+    dateScroll: { gap: 8, paddingVertical: 2 },
+    dateChip: {
+      minWidth: 72,
+      borderRadius: radii.md,
+      borderWidth: 1.5,
+      borderColor: c.lineStrong,
+      backgroundColor: c.bgElevated,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      alignItems: 'center' as const,
+      gap: 2,
+    },
+    dateChipActive: {
+      backgroundColor: c.today,
+      borderColor: c.today,
+    },
+    dateChipWeekday: {
+      fontFamily: fonts.bold,
+      fontSize: 11,
+      color: c.inkMuted,
+      letterSpacing: 0.4,
+    },
+    dateChipDay: {
+      fontFamily: fonts.bold,
+      fontSize: 18,
+      color: c.ink,
+    },
+    dateChipMonth: {
+      fontFamily: fonts.body,
+      fontSize: 11,
+      color: c.inkSoft,
+    },
+    dateOnActive: { color: c.white },
+    selectedHint: {
+      fontFamily: fonts.medium,
+      fontSize: 13,
+      color: c.work,
+    },
+    inputRow: {
+      flexDirection: 'row' as const,
+      gap: 10,
+      alignItems: 'flex-end' as const,
+    },
+    input: {
+      flex: 1,
+      minHeight: 110,
+      borderRadius: radii.lg,
+      borderWidth: 1.5,
+      borderColor: c.lineStrong,
+      borderStyle: 'dashed' as const,
+      backgroundColor: c.bgElevated,
+      padding: 16,
+      fontFamily: fonts.body,
+      fontSize: 15,
+      color: c.ink,
+      textAlignVertical: 'top' as const,
+    },
+    parseBtn: {
+      width: 52,
+      height: 52,
+      borderRadius: 26,
+      backgroundColor: c.today,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      ...Platform.select({ web: { cursor: 'pointer' } as object, default: {} }),
+    },
+    manualBox: { gap: 10 },
+    singleInput: {
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+      backgroundColor: c.bgElevated,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontFamily: fonts.body,
+      color: c.ink,
+    },
+    fieldRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      justifyContent: 'space-between' as const,
+    },
+    fieldLabel: {
+      fontFamily: fonts.semibold,
+      fontSize: 12,
+      color: c.inkSoft,
+      marginTop: 2,
+    },
+    manageLink: {
+      fontFamily: fonts.semibold,
+      fontSize: 12,
+      color: c.energy,
+    },
+    chipRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+    miniChip: {
+      borderRadius: radii.pill,
+      borderWidth: 1.5,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    miniChipText: {
+      fontFamily: fonts.bold,
+      fontSize: 12,
+      textTransform: 'capitalize' as const,
+    },
+    parsedBlock: { gap: 12, marginTop: 4 },
+    parsedTitle: {
+      fontFamily: fonts.bold,
+      fontSize: 12,
+      letterSpacing: 1.1,
+      color: c.inkSoft,
+    },
+    emptyQueue: {
+      fontFamily: fonts.body,
+      color: c.inkMuted,
+      fontSize: 13,
+    },
+    parsedCard: {
+      borderRadius: radii.lg,
+      padding: 14,
+      gap: 10,
+      borderWidth: 1.5,
+    },
+    cardTop: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+    },
+    orderPill: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: c.ink,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    orderText: {
+      color: c.white,
+      fontFamily: fonts.bold,
+      fontSize: 13,
+    },
+    parsedName: {
+      flex: 1,
+      fontFamily: fonts.semibold,
+      fontSize: 16,
+      color: c.ink,
+      paddingVertical: 4,
+    },
+    parsedMeta: {
+      fontFamily: fonts.medium,
+      fontSize: 13,
+      color: c.inkSoft,
+    },
+    reorderCol: {
+      gap: 4,
+    },
+    reorderBtn: {
+      width: 36,
+      height: 32,
+      borderRadius: 10,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      backgroundColor: c.bgElevated,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+      ...Platform.select({ web: { cursor: 'pointer' } as object, default: {} }),
+    },
+    reorderDisabled: {
+      opacity: 0.4,
+    },
+    queueActions: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+      marginTop: 2,
+    },
+    tapHint: {
+      flex: 1,
+      fontFamily: fonts.body,
+      fontSize: 11,
+      color: c.inkMuted,
+    },
+    deleteBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      backgroundColor: c.alertSoft,
+    },
+  }));
+
   return (
     <AppShell>
       <View style={styles.topBar}>
@@ -148,10 +411,12 @@ export default function AiInputScreen() {
       </View>
 
       <View style={styles.modeRow}>
-        {([
-          { id: 'manual', label: 'Manual' },
-          { id: 'ai', label: 'AI parse' },
-        ] as const).map((item) => (
+        {(
+          [
+            { id: 'manual', label: 'Manual' },
+            { id: 'ai', label: 'AI parse' },
+          ] as const
+        ).map((item) => (
           <Pressable
             key={item.id}
             onPress={() => setMode(item.id)}
@@ -174,8 +439,48 @@ export default function AiInputScreen() {
           {mode === 'ai' ? 'Parse a brain dump' : 'Build your task queue'}
         </Text>
         <Text style={styles.subtitle}>
-          Set priority, reorder with ↑↓, then schedule into {selectedDate}.
+          Choose the day, set priority, reorder with ↑↓, then schedule.
         </Text>
+
+        <View style={styles.dateSection}>
+          <Text style={styles.dateLabel}>Schedule for</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.dateScroll}
+          >
+            {dateOptions.map((day) => {
+              const active = day === selectedDate;
+              const d = new Date(day + 'T12:00:00');
+              const weekday = isToday(day)
+                ? 'Today'
+                : d.toLocaleDateString('en-US', { weekday: 'short' });
+              return (
+                <Pressable
+                  key={day}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Schedule for ${formatShortDate(day)}`}
+                  accessibilityState={{ selected: active }}
+                  onPress={() => setSelectedDate(day)}
+                  style={[styles.dateChip, active && styles.dateChipActive]}
+                >
+                  <Text style={[styles.dateChipWeekday, active && styles.dateOnActive]}>
+                    {weekday}
+                  </Text>
+                  <Text style={[styles.dateChipDay, active && styles.dateOnActive]}>
+                    {d.getDate()}
+                  </Text>
+                  <Text style={[styles.dateChipMonth, active && styles.dateOnActive]}>
+                    {d.toLocaleDateString('en-US', { month: 'short' })}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Text style={styles.selectedHint}>
+            Adding to {isToday(selectedDate) ? 'today' : formatDisplayDate(selectedDate)}
+          </Text>
+        </View>
 
         {mode === 'ai' ? (
           <View style={styles.inputRow}>
@@ -273,109 +578,109 @@ export default function AiInputScreen() {
           {drafts.map((task, index) => {
             const catMeta = getCategory(task.category);
             return (
-            <View
-              key={task.id}
-              style={[
-                styles.parsedCard,
-                {
-                  backgroundColor: catMeta.soft,
-                  borderColor: catMeta.color,
-                },
-              ]}
-            >
-              <View style={styles.cardTop}>
-                <View style={styles.orderPill}>
-                  <Text style={styles.orderText}>{index + 1}</Text>
+              <View
+                key={task.id}
+                style={[
+                  styles.parsedCard,
+                  {
+                    backgroundColor: catMeta.soft,
+                    borderColor: catMeta.color,
+                  },
+                ]}
+              >
+                <View style={styles.cardTop}>
+                  <View style={styles.orderPill}>
+                    <Text style={styles.orderText}>{index + 1}</Text>
+                  </View>
+                  <TextInput
+                    value={task.title}
+                    onChangeText={(value) =>
+                      setDrafts((prev) =>
+                        prev.map((d) => (d.id === task.id ? { ...d, title: value } : d))
+                      )
+                    }
+                    style={styles.parsedName}
+                  />
+                  <View style={styles.reorderCol}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Move task up"
+                      disabled={index === 0}
+                      hitSlop={8}
+                      onPress={() => moveDraft(task.id, 'up')}
+                      style={[
+                        styles.reorderBtn,
+                        index === 0 && styles.reorderDisabled,
+                      ]}
+                    >
+                      <Ionicons
+                        name="chevron-up"
+                        size={20}
+                        color={index === 0 ? colors.inkMuted : colors.ink}
+                      />
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Move task down"
+                      disabled={index === drafts.length - 1}
+                      hitSlop={8}
+                      onPress={() => moveDraft(task.id, 'down')}
+                      style={[
+                        styles.reorderBtn,
+                        index === drafts.length - 1 && styles.reorderDisabled,
+                      ]}
+                    >
+                      <Ionicons
+                        name="chevron-down"
+                        size={20}
+                        color={
+                          index === drafts.length - 1 ? colors.inkMuted : colors.ink
+                        }
+                      />
+                    </Pressable>
+                  </View>
                 </View>
-                <TextInput
-                  value={task.title}
-                  onChangeText={(value) =>
+
+                <Text style={styles.parsedMeta}>
+                  {formatDuration(task.durationMinutes)}
+                </Text>
+
+                <Text style={styles.fieldLabel}>Priority</Text>
+                <PriorityTag
+                  priority={task.priority}
+                  onChange={(next) =>
                     setDrafts((prev) =>
-                      prev.map((d) => (d.id === task.id ? { ...d, title: value } : d))
+                      prev.map((d) => (d.id === task.id ? { ...d, priority: next } : d))
                     )
                   }
-                  style={styles.parsedName}
                 />
-                <View style={styles.reorderCol}>
+
+                <View style={styles.queueActions}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Move task up"
-                    disabled={index === 0}
-                    hitSlop={8}
-                    onPress={() => moveDraft(task.id, 'up')}
-                    style={[
-                      styles.reorderBtn,
-                      index === 0 && styles.reorderDisabled,
-                    ]}
+                    accessibilityLabel="Cycle category"
+                    onPress={() => cycleCategory(task.id)}
+                    onLongPress={() => {
+                      setEditingCategoryId(task.category);
+                      setCategoryModalOpen(true);
+                    }}
                   >
-                    <Ionicons
-                      name="chevron-up"
-                      size={20}
-                      color={index === 0 ? colors.inkMuted : colors.ink}
-                    />
+                    <CategoryTag category={task.category} />
                   </Pressable>
+                  <Text style={styles.tapHint}>tap to cycle · hold to edit</Text>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Move task down"
-                    disabled={index === drafts.length - 1}
-                    hitSlop={8}
-                    onPress={() => moveDraft(task.id, 'down')}
-                    style={[
-                      styles.reorderBtn,
-                      index === drafts.length - 1 && styles.reorderDisabled,
-                    ]}
+                    accessibilityLabel="Delete task"
+                    onPress={() =>
+                      setDrafts((prev) => prev.filter((d) => d.id !== task.id))
+                    }
+                    style={styles.deleteBtn}
                   >
-                    <Ionicons
-                      name="chevron-down"
-                      size={20}
-                      color={
-                        index === drafts.length - 1 ? colors.inkMuted : colors.ink
-                      }
-                    />
+                    <Ionicons name="trash-outline" size={18} color={colors.alert} />
                   </Pressable>
                 </View>
               </View>
-
-              <Text style={styles.parsedMeta}>
-                {formatDuration(task.durationMinutes)}
-              </Text>
-
-              <Text style={styles.fieldLabel}>Priority</Text>
-              <PriorityTag
-                priority={task.priority}
-                onChange={(next) =>
-                  setDrafts((prev) =>
-                    prev.map((d) => (d.id === task.id ? { ...d, priority: next } : d))
-                  )
-                }
-              />
-
-              <View style={styles.queueActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Cycle category"
-                  onPress={() => cycleCategory(task.id)}
-                  onLongPress={() => {
-                    setEditingCategoryId(task.category);
-                    setCategoryModalOpen(true);
-                  }}
-                >
-                  <CategoryTag category={task.category} />
-                </Pressable>
-                <Text style={styles.tapHint}>tap to cycle · hold to edit</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Delete task"
-                  onPress={() =>
-                    setDrafts((prev) => prev.filter((d) => d.id !== task.id))
-                  }
-                  style={styles.deleteBtn}
-                >
-                  <Ionicons name="trash-outline" size={18} color={colors.alert} />
-                </Pressable>
-              </View>
-            </View>
-          );
+            );
           })}
         </View>
       </ScrollView>
@@ -388,7 +693,7 @@ export default function AiInputScreen() {
             return;
           }
           addDraftTasks(drafts, selectedDate);
-          router.replace('/(tabs)');
+          router.replace(isToday(selectedDate) ? '/(tabs)' : '/(tabs)/calendar');
         }}
       />
 
@@ -404,196 +709,3 @@ export default function AiInputScreen() {
     </AppShell>
   );
 }
-
-const styles = StyleSheet.create({
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  close: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.line,
-  },
-  topTitle: {
-    fontFamily: fonts.semibold,
-    fontSize: 15,
-    color: colors.inkSoft,
-  },
-  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  modeChip: {
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: colors.bgElevated,
-  },
-  modeChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
-  modeText: { fontFamily: fonts.medium, color: colors.ink },
-  modeTextActive: { color: colors.white },
-  content: { gap: 14, paddingBottom: 20, flexGrow: 1 },
-  brand: { fontFamily: fonts.brandItalic, fontSize: 24, color: colors.ink },
-  title: { fontFamily: fonts.bold, fontSize: 26, color: colors.ink },
-  subtitle: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: colors.inkMuted,
-    lineHeight: 20,
-  },
-  inputRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-end' },
-  input: {
-    flex: 1,
-    minHeight: 110,
-    borderRadius: radii.lg,
-    borderWidth: 1.5,
-    borderColor: colors.lineStrong,
-    borderStyle: 'dashed',
-    backgroundColor: colors.bgElevated,
-    padding: 16,
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: colors.ink,
-    textAlignVertical: 'top',
-  },
-  parseBtn: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: colors.black,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Platform.select({ web: { cursor: 'pointer' } as object, default: {} }),
-  },
-  manualBox: { gap: 10 },
-  singleInput: {
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    backgroundColor: colors.bgElevated,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    fontFamily: fonts.body,
-    color: colors.ink,
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  fieldLabel: {
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    color: colors.inkSoft,
-    marginTop: 2,
-  },
-  manageLink: {
-    fontFamily: fonts.semibold,
-    fontSize: 12,
-    color: colors.energy,
-  },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  miniChip: {
-    borderRadius: radii.pill,
-    borderWidth: 1.5,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  miniChipText: {
-    fontFamily: fonts.bold,
-    fontSize: 12,
-    textTransform: 'capitalize',
-  },
-  parsedBlock: { gap: 12, marginTop: 4 },
-  parsedTitle: {
-    fontFamily: fonts.bold,
-    fontSize: 12,
-    letterSpacing: 1.1,
-    color: colors.inkSoft,
-  },
-  emptyQueue: {
-    fontFamily: fonts.body,
-    color: colors.inkMuted,
-    fontSize: 13,
-  },
-  parsedCard: {
-    borderRadius: radii.lg,
-    padding: 14,
-    gap: 10,
-    borderWidth: 1.5,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  orderPill: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  orderText: {
-    color: colors.white,
-    fontFamily: fonts.bold,
-    fontSize: 13,
-  },
-  parsedName: {
-    flex: 1,
-    fontFamily: fonts.semibold,
-    fontSize: 16,
-    color: colors.ink,
-    paddingVertical: 4,
-  },
-  parsedMeta: {
-    fontFamily: fonts.medium,
-    fontSize: 13,
-    color: colors.inkSoft,
-  },
-  reorderCol: {
-    gap: 4,
-  },
-  reorderBtn: {
-    width: 36,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.bgElevated,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    ...Platform.select({ web: { cursor: 'pointer' } as object, default: {} }),
-  },
-  reorderDisabled: {
-    opacity: 0.4,
-  },
-  queueActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 2,
-  },
-  tapHint: {
-    flex: 1,
-    fontFamily: fonts.body,
-    fontSize: 11,
-    color: colors.inkMuted,
-  },
-  deleteBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.alertSoft,
-  },
-});

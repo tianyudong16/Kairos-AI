@@ -1,9 +1,32 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Svg, { Circle, G } from 'react-native-svg';
 
-import { colors, fonts } from '@/constants/theme';
+import { fonts, useTheme, useThemedStyles } from '@/constants/theme';
 
 export function FocusRing({ score = 87 }: { score?: number }) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles((c) => ({
+    wrap: {
+      width: 96,
+      height: 96,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    center: {
+      position: 'absolute' as const,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    score: {
+      fontFamily: fonts.bold,
+      fontSize: 20,
+      color: c.ink,
+    },
+  }));
   const size = 96;
   const stroke = 8;
   const radius = (size - stroke) / 2;
@@ -41,26 +64,3 @@ export function FocusRing({ score = 87 }: { score?: number }) {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrap: {
-    width: 96,
-    height: 96,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  center: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  score: {
-    fontFamily: fonts.bold,
-    fontSize: 20,
-    color: colors.ink,
-  },
-});

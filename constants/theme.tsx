@@ -6,7 +6,6 @@ import React, {
   useCallback,
   ReactNode,
 } from 'react';
-import { useMemo as useReactMemo } from 'react';
 import { StyleSheet } from 'react-native';
 
 /** Productive cool palette — light blues & greens */
@@ -198,5 +197,6 @@ export function useThemedStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet
   factory: (c: ThemeColors) => T
 ) {
   const { colors: themeColors } = useTheme();
-  return useReactMemo(() => StyleSheet.create(factory(themeColors)), [themeColors]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- factory is inline per render; themeColors drives updates
+  return useMemo(() => StyleSheet.create(factory(themeColors)), [themeColors]);
 }

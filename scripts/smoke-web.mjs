@@ -87,6 +87,12 @@ async function main() {
   await page.goto(`${base}/settings`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(700);
   await check(results, 'settings categories', (await page.getByText('Categories').count()) > 0);
+  await page.getByRole('button', { name: /Switch to dark mode/i }).click();
+  await page.waitForTimeout(400);
+  await check(results, 'dark mode on', (await page.getByText(/cool teal night palette/i).count()) > 0);
+  await page.getByRole('button', { name: /Switch to light mode/i }).click();
+  await page.waitForTimeout(300);
+  await check(results, 'dark mode off', (await page.getByText(/light blue & green/i).count()) > 0);
   await page.getByText('Edit', { exact: true }).click();
   await page.waitForTimeout(400);
   await check(results, 'category modal', (await page.getByText('Add category').count()) > 0);
@@ -96,6 +102,22 @@ async function main() {
   await page.getByText('Create', { exact: true }).click();
   await page.waitForTimeout(400);
   await check(results, 'custom category', (await page.getByText('CREATIVE').count()) > 0);
+
+  await page.goto(`${base}/calendar`, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(700);
+  await check(
+    results,
+    'calendar add cta',
+    (await page.getByRole('button', { name: /Add tasks for/i }).count()) > 0
+  );
+  await page.getByRole('button', { name: /Add tasks for/i }).click();
+  await page.waitForTimeout(700);
+  await check(results, 'add date picker', (await page.getByText('Schedule for').count()) > 0);
+  await check(
+    results,
+    'add date chips',
+    (await page.getByRole('button', { name: /Schedule for/i }).count()) > 1
+  );
 
   console.log(results.join('\n'));
   await page.screenshot({ path: '/tmp/kairos-ux.png', fullPage: true });

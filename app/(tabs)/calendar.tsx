@@ -1,23 +1,28 @@
+import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 
+import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import {
   formatDisplayDate,
   getMonthMatrix,
+  isToday,
   parseDateKey,
   startOfWeek,
   toDateKey,
   addDays,
 } from '@/lib/schedule';
-import { colors, fonts, radii } from '@/constants/theme';
+import { fonts, radii, useThemedStyles } from '@/constants/theme';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function CalendarScreen() {
+  const router = useRouter();
   const { tasks, selectedDate, setSelectedDate, tasksForSelectedDate } = useApp();
   const [mode, setMode] = useState<'week' | 'month'>('week');
   const selected = parseDateKey(selectedDate);
+  const selectedIsToday = isToday(selectedDate);
   const [monthCursor, setMonthCursor] = useState(
     new Date(selected.getFullYear(), selected.getMonth(), 1)
   );
@@ -40,6 +45,127 @@ export default function CalendarScreen() {
     });
     return map;
   }, [tasks]);
+
+  const styles = useThemedStyles((c) => ({
+    content: { gap: 14, paddingBottom: 24 },
+    brand: { fontFamily: fonts.brandItalic, fontSize: 24, color: c.ink },
+    title: { fontFamily: fonts.bold, fontSize: 28, color: c.ink },
+    subtitle: { fontFamily: fonts.body, fontSize: 14, color: c.inkMuted },
+    modeRow: { flexDirection: 'row' as const, gap: 8 },
+    modeChip: {
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      backgroundColor: c.bgElevated,
+    },
+    modeChipActive: { backgroundColor: c.ink, borderColor: c.ink },
+    modeText: { fontFamily: fonts.medium, color: c.ink },
+    modeTextActive: { color: c.white },
+    weekGrid: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 8 },
+    dayCard: {
+      width: '31%' as const,
+      flexGrow: 1,
+      minWidth: 96,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: c.line,
+      backgroundColor: c.bgElevated,
+      padding: 10,
+      gap: 4,
+    },
+    dayCardActive: { backgroundColor: c.ink, borderColor: c.ink },
+    weekday: { fontFamily: fonts.medium, fontSize: 12, color: c.inkMuted },
+    dayNum: { fontFamily: fonts.bold, fontSize: 20, color: c.ink },
+    count: { fontFamily: fonts.body, fontSize: 11, color: c.inkSoft },
+    onDark: { color: c.white },
+    monthWrap: {
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: c.line,
+      backgroundColor: c.bgElevated,
+      padding: 12,
+      gap: 8,
+    },
+    monthHeader: {
+      flexDirection: 'row' as const,
+      justifyContent: 'space-between' as const,
+      alignItems: 'center' as const,
+    },
+    monthTitle: { fontFamily: fonts.semibold, color: c.ink, fontSize: 16 },
+    monthNav: {
+      fontFamily: fonts.bold,
+      fontSize: 24,
+      color: c.ink,
+      paddingHorizontal: 8,
+    },
+    monthLabels: { flexDirection: 'row' as const },
+    monthLabel: {
+      flex: 1,
+      textAlign: 'center' as const,
+      fontFamily: fonts.medium,
+      fontSize: 12,
+      color: c.inkMuted,
+    },
+    monthRow: { flexDirection: 'row' as const },
+    monthCell: {
+      flex: 1,
+      aspectRatio: 1,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+      borderRadius: 10,
+      margin: 1,
+    },
+    monthCellActive: { backgroundColor: c.ink },
+    monthCellMuted: { opacity: 0.45 },
+    monthCellText: { fontFamily: fonts.medium, color: c.ink },
+    mutedText: { color: c.inkMuted },
+    dot: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      backgroundColor: c.energy,
+      marginTop: 2,
+    },
+    selectedBlock: {
+      borderRadius: radii.lg,
+      borderWidth: 1,
+      borderColor: c.line,
+      backgroundColor: c.bgElevated,
+      padding: 14,
+      gap: 10,
+    },
+    selectedEyebrow: {
+      fontFamily: fonts.bold,
+      fontSize: 11,
+      letterSpacing: 0.8,
+      color: c.calendar,
+      textTransform: 'uppercase' as const,
+    },
+    selectedTitle: { fontFamily: fonts.semibold, fontSize: 16, color: c.ink },
+    selectedEmpty: { fontFamily: fonts.body, color: c.inkMuted },
+    selectedItem: { fontFamily: fonts.medium, color: c.inkSoft, fontSize: 13 },
+    addBtn: { marginTop: 4 },
+    viewDayLink: {
+      alignSelf: 'center' as const,
+      paddingVertical: 6,
+    },
+    viewDayText: {
+      fontFamily: fonts.semibold,
+      fontSize: 13,
+      color: c.work,
+    },
+    todayBtn: {
+      alignSelf: 'center' as const,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+    },
+    todayText: { fontFamily: fonts.semibold, color: c.ink },
+  }));
 
   return (
     <ScrollView
@@ -157,9 +283,14 @@ export default function CalendarScreen() {
       )}
 
       <View style={styles.selectedBlock}>
+        <Text style={styles.selectedEyebrow}>
+          {selectedIsToday ? 'Selected · Today' : 'Selected day'}
+        </Text>
         <Text style={styles.selectedTitle}>{formatDisplayDate(selectedDate)}</Text>
         {tasksForSelectedDate.length === 0 ? (
-          <Text style={styles.selectedEmpty}>No tasks — use + to add some.</Text>
+          <Text style={styles.selectedEmpty}>
+            No tasks on this day yet — add some below.
+          </Text>
         ) : (
           tasksForSelectedDate.map((task) => (
             <Text key={task.id} style={styles.selectedItem}>
@@ -167,113 +298,35 @@ export default function CalendarScreen() {
             </Text>
           ))
         )}
+        <PrimaryButton
+          label={
+            selectedIsToday
+              ? 'Add tasks for today'
+              : `Add tasks for ${formatDisplayDate(selectedDate).split(',')[0]}`
+          }
+          onPress={() => router.push('/ai-input')}
+          style={styles.addBtn}
+        />
+        <Pressable
+          onPress={() => router.push('/(tabs)')}
+          style={styles.viewDayLink}
+        >
+          <Text style={styles.viewDayText}>
+            {selectedIsToday
+              ? 'Open today’s schedule →'
+              : 'Open this day’s schedule →'}
+          </Text>
+        </Pressable>
       </View>
 
-      <Pressable
-        onPress={() => setSelectedDate(toDateKey(new Date()))}
-        style={styles.todayBtn}
-      >
-        <Text style={styles.todayText}>Jump to today</Text>
-      </Pressable>
+      {!selectedIsToday ? (
+        <Pressable
+          onPress={() => setSelectedDate(toDateKey(new Date()))}
+          style={styles.todayBtn}
+        >
+          <Text style={styles.todayText}>Jump to today</Text>
+        </Pressable>
+      ) : null}
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { gap: 14, paddingBottom: 24 },
-  brand: { fontFamily: fonts.brandItalic, fontSize: 24, color: colors.ink },
-  title: { fontFamily: fonts.bold, fontSize: 28, color: colors.ink },
-  subtitle: { fontFamily: fonts.body, fontSize: 14, color: colors.inkMuted },
-  modeRow: { flexDirection: 'row', gap: 8 },
-  modeChip: {
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: colors.bgElevated,
-  },
-  modeChipActive: { backgroundColor: colors.ink, borderColor: colors.ink },
-  modeText: { fontFamily: fonts.medium, color: colors.ink },
-  modeTextActive: { color: colors.white },
-  weekGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  dayCard: {
-    width: '31%',
-    flexGrow: 1,
-    minWidth: 96,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.bgElevated,
-    padding: 10,
-    gap: 4,
-  },
-  dayCardActive: { backgroundColor: colors.ink, borderColor: colors.ink },
-  weekday: { fontFamily: fonts.medium, fontSize: 12, color: colors.inkMuted },
-  dayNum: { fontFamily: fonts.bold, fontSize: 20, color: colors.ink },
-  count: { fontFamily: fonts.body, fontSize: 11, color: colors.inkSoft },
-  onDark: { color: colors.white },
-  monthWrap: {
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.bgElevated,
-    padding: 12,
-    gap: 8,
-  },
-  monthHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  monthTitle: { fontFamily: fonts.semibold, color: colors.ink, fontSize: 16 },
-  monthNav: { fontFamily: fonts.bold, fontSize: 24, color: colors.ink, paddingHorizontal: 8 },
-  monthLabels: { flexDirection: 'row' },
-  monthLabel: {
-    flex: 1,
-    textAlign: 'center',
-    fontFamily: fonts.medium,
-    fontSize: 12,
-    color: colors.inkMuted,
-  },
-  monthRow: { flexDirection: 'row' },
-  monthCell: {
-    flex: 1,
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 10,
-    margin: 1,
-  },
-  monthCellActive: { backgroundColor: colors.ink },
-  monthCellMuted: { opacity: 0.45 },
-  monthCellText: { fontFamily: fonts.medium, color: colors.ink },
-  mutedText: { color: colors.inkMuted },
-  dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.energy,
-    marginTop: 2,
-  },
-  selectedBlock: {
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.line,
-    backgroundColor: colors.bgElevated,
-    padding: 14,
-    gap: 6,
-  },
-  selectedTitle: { fontFamily: fonts.semibold, fontSize: 16, color: colors.ink },
-  selectedEmpty: { fontFamily: fonts.body, color: colors.inkMuted },
-  selectedItem: { fontFamily: fonts.medium, color: colors.inkSoft, fontSize: 13 },
-  todayBtn: {
-    alignSelf: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.lineStrong,
-  },
-  todayText: { fontFamily: fonts.semibold, color: colors.ink },
-});
