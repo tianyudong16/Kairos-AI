@@ -314,7 +314,7 @@ export default function CalendarScreen() {
           <Text style={styles.viewDayText}>
             {selectedIsToday
               ? 'Open today’s schedule →'
-              : 'Open this day’s schedule →'}
+              : `Open ${formatDisplayDate(selectedDate).split(',')[0]} schedule →`}
           </Text>
         </Pressable>
       </View>

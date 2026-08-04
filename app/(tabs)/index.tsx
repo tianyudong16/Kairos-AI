@@ -6,7 +6,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ScheduleTimeline } from '@/components/dashboard/ScheduleTimeline';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
-import { addDays, formatDisplayDate } from '@/lib/schedule';
+import { addDays, formatDisplayDate, isToday, toDateKey } from '@/lib/schedule';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 
 export default function DashboardScreen() {
@@ -38,6 +38,39 @@ export default function DashboardScreen() {
       fontFamily: fonts.body,
       fontSize: 14,
       color: c.inkMuted,
+    },
+    viewingBanner: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: c.work,
+      backgroundColor: c.workSoft,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+    },
+    viewingCopy: { flex: 1, gap: 2 },
+    viewingTitle: {
+      fontFamily: fonts.semibold,
+      fontSize: 13,
+      color: c.work,
+    },
+    viewingMeta: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: c.inkSoft,
+    },
+    jumpToday: {
+      borderRadius: radii.pill,
+      backgroundColor: c.work,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    jumpTodayText: {
+      fontFamily: fonts.bold,
+      fontSize: 12,
+      color: c.white,
     },
     avatar: {
       alignItems: 'center' as const,
@@ -88,6 +121,7 @@ export default function DashboardScreen() {
       backgroundColor: c.bgElevated,
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
+      paddingHorizontal: 10,
     },
     dayCenterText: {
       fontFamily: fonts.medium,
@@ -139,6 +173,7 @@ export default function DashboardScreen() {
       gap: 12,
     },
     sectionTitle: {
+      flex: 1,
       fontFamily: fonts.semibold,
       fontSize: 16,
       color: c.ink,
@@ -196,6 +231,10 @@ export default function DashboardScreen() {
     user,
   } = useApp();
 
+  const viewingToday = isToday(selectedDate);
+  const firstName =
+    user?.name && !user.isGuest ? `, ${user.name.split(' ')[0]}` : '';
+
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
@@ -205,7 +244,7 @@ export default function DashboardScreen() {
         <View style={styles.headerText}>
           <Text style={styles.brand}>Kairos AI</Text>
           <Text style={styles.greeting}>
-            Good morning{user?.name && !user.isGuest ? `, ${user.name.split(' ')[0]}` : ''}
+            {viewingToday ? `Good morning${firstName}` : `Schedule${firstName}`}
           </Text>
           <Text style={styles.date}>{formatDisplayDate(selectedDate)}</Text>
         </View>
@@ -229,17 +268,50 @@ export default function DashboardScreen() {
         </Pressable>
       </Animated.View>
 
+      {!viewingToday ? (
+        <View
+          style={styles.viewingBanner}
+          accessibilityLabel={`Viewing another day: ${formatDisplayDate(selectedDate)}`}
+        >
+          <View style={styles.viewingCopy}>
+            <Text style={styles.viewingTitle}>Viewing another day</Text>
+            <Text style={styles.viewingMeta}>
+              Not today — showing {formatDisplayDate(selectedDate)}
+            </Text>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Jump to today’s schedule"
+            onPress={() => setSelectedDate(toDateKey(new Date()))}
+            style={styles.jumpToday}
+          >
+            <Text style={styles.jumpTodayText}>Today</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       <View style={styles.dayNav}>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Previous day"
           onPress={() => setSelectedDate(addDays(selectedDate, -1))}
           style={styles.dayBtn}
         >
           <Ionicons name="chevron-back" size={18} color={colors.ink} />
         </Pressable>
-        <Pressable onPress={() => router.push('/(tabs)/calendar')} style={styles.dayCenter}>
-          <Text style={styles.dayCenterText}>Calendar view</Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Open calendar"
+          onPress={() => router.push('/(tabs)/calendar')}
+          style={styles.dayCenter}
+        >
+          <Text style={styles.dayCenterText}>
+            {viewingToday ? 'Today · Calendar' : 'Pick another day'}
+          </Text>
         </Pressable>
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Next day"
           onPress={() => setSelectedDate(addDays(selectedDate, 1))}
           style={styles.dayBtn}
         >
@@ -276,7 +348,11 @@ export default function DashboardScreen() {
       </Animated.View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Today’s schedule</Text>
+        <Text style={styles.sectionTitle}>
+          {viewingToday
+            ? 'Today’s schedule'
+            : `${formatDisplayDate(selectedDate)} schedule`}
+        </Text>
         <PrimaryButton
           label="Optimize"
           variant="secondary"

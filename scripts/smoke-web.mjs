@@ -27,6 +27,32 @@ async function main() {
   await page.getByRole('button', { name: /Start planning/i }).click();
   await page.waitForTimeout(800);
   await check(results, 'dashboard', (await page.getByText('Today’s schedule').count()) > 0);
+  await check(
+    results,
+    'nav schedule',
+    (await page.getByRole('button', { name: 'Schedule' }).count()) > 0
+  );
+
+  // Viewing a non-today day must not pretend to be "Today"
+  await page.getByRole('button', { name: 'Next day' }).click();
+  await page.waitForTimeout(400);
+  await check(
+    results,
+    'other day banner',
+    (await page.getByText('Viewing another day').count()) > 0
+  );
+  await check(
+    results,
+    'other day not titled today',
+    (await page.getByText('Today’s schedule').count()) === 0
+  );
+  await page.getByRole('button', { name: 'Jump to today’s schedule' }).click();
+  await page.waitForTimeout(400);
+  await check(
+    results,
+    'back to today',
+    (await page.getByText('Today’s schedule').count()) > 0
+  );
 
   await page.getByRole('button', { name: 'Open profile' }).click();
   await page.waitForTimeout(500);
@@ -35,7 +61,7 @@ async function main() {
   await page.getByRole('button', { name: 'You' }).click();
   await page.waitForTimeout(400);
   await check(results, 'you tab', (await page.getByText('Rhythm snapshot').count()) > 0);
-  await page.getByRole('button', { name: 'Today' }).click();
+  await page.getByRole('button', { name: 'Schedule' }).click();
   await page.waitForTimeout(400);
 
   await page.getByRole('button', { name: /Add task/i }).click();
@@ -61,7 +87,7 @@ async function main() {
       after.indexOf('Recovery walk') < after.indexOf('Deep work block')
   );
 
-  await page.getByRole('button', { name: /^Schedule\b/ }).click();
+  await page.getByRole('button', { name: /Schedule.*→/ }).click();
   await page.waitForTimeout(800);
 
   await page.getByRole('button', { name: 'Coach' }).click();
@@ -89,7 +115,6 @@ async function main() {
     'nav you tab',
     (await page.getByRole('button', { name: 'You' }).count()) > 0
   );
-  await check(results, 'nav today', (await page.getByRole('button', { name: 'Today' }).count()) > 0);
   await check(
     results,
     'nav no insights tab',
@@ -120,20 +145,32 @@ async function main() {
   await page.getByText('Create', { exact: true }).click();
   await page.waitForTimeout(400);
   await check(results, 'custom category', (await page.getByText('CREATIVE').count()) > 0);
-  // Close category modal if still open so tab bar is clickable
   const closeModal = page.getByRole('button', { name: /close/i });
   if ((await closeModal.count()) > 0) {
     await closeModal.first().click();
     await page.waitForTimeout(300);
   }
 
-  await page.getByRole('button', { name: 'Calendar' }).click();
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click();
   await page.waitForTimeout(700);
   await check(
     results,
     'calendar add cta',
     (await page.getByRole('button', { name: /Add tasks for/i }).count()) > 0
   );
+
+  // From calendar, open selected day's schedule — tab must be Schedule, never a false "Today" tab
+  await page.getByText(/Open .+ schedule →/).filter({ visible: true }).click();
+  await page.waitForTimeout(600);
+  await check(
+    results,
+    'calendar open uses schedule tab',
+    (await page.getByRole('button', { name: 'Schedule' }).count()) > 0 &&
+      (await page.getByRole('button', { name: 'Today', exact: true }).count()) === 0
+  );
+
+  await page.getByRole('button', { name: 'Calendar', exact: true }).click();
+  await page.waitForTimeout(500);
   await page.getByRole('button', { name: /Add tasks for/i }).click();
   await page.waitForTimeout(700);
   await check(results, 'add date picker', (await page.getByText('Schedule for').count()) > 0);

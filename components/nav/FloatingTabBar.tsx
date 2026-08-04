@@ -5,14 +5,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 
-/** Simpler IA: Today · Calendar · Add · Coach · You */
+/** IA: Schedule · Calendar · Add · Coach · You */
 const items = [
   {
     key: 'home',
-    label: 'Today',
+    label: 'Schedule',
     icon: 'sunny-outline' as const,
     href: '/(tabs)',
-    activeKey: 'today' as const,
+    activeKey: 'schedule' as const,
   },
   {
     key: 'calendar',
@@ -167,7 +167,7 @@ export function FloatingTabBar() {
 
           const active = isActive(item.key);
           const activeColor =
-            item.activeKey === 'today'
+            item.activeKey === 'schedule'
               ? colors.today
               : item.activeKey === 'calendar'
                 ? colors.calendar
