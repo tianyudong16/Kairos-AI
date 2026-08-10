@@ -7,8 +7,9 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
-import { useApp } from '@/context/AppContext';
+import { Lifestyle, useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
+import { LIFESTYLE_OPTIONS, lifestyleLabel } from '@/lib/auth';
 import { sleepDurationHours } from '@/lib/schedule';
 
 function initials(name: string) {
@@ -34,6 +35,9 @@ export default function ProfileScreen() {
 
   const [nameDraft, setNameDraft] = useState(user?.name ?? '');
   const [emailDraft, setEmailDraft] = useState(user?.email ?? '');
+  const [lifestyleDraft, setLifestyleDraft] = useState<Lifestyle | null>(
+    user?.lifestyle ?? null
+  );
   const [savedFlash, setSavedFlash] = useState(false);
 
   useEffect(() => {
@@ -45,7 +49,8 @@ export default function ProfileScreen() {
   useEffect(() => {
     setNameDraft(user?.name ?? '');
     setEmailDraft(user?.email ?? '');
-  }, [user?.name, user?.email]);
+    setLifestyleDraft(user?.lifestyle ?? null);
+  }, [user?.name, user?.email, user?.lifestyle]);
 
   const chronoLabel = useMemo(() => {
     switch (chronotype) {
@@ -122,13 +127,38 @@ export default function ProfileScreen() {
       fontSize: 11,
       color: c.alert,
     },
-    section: {
-      fontFamily: fonts.semibold,
-      fontSize: 14,
-      color: c.ink,
-      marginTop: 8,
-    },
-    input: {
+  section: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: c.ink,
+    marginTop: 8,
+  },
+  chipRow: {
+    flexDirection: 'row' as const,
+    flexWrap: 'wrap' as const,
+    gap: 8,
+  },
+  chip: {
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: c.lineStrong,
+    backgroundColor: c.bgElevated,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  chipSelected: {
+    backgroundColor: c.today,
+    borderColor: c.today,
+  },
+  chipText: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: c.ink,
+  },
+  chipTextSelected: {
+    color: c.white,
+  },
+  input: {
       borderRadius: radii.md,
       borderWidth: 1,
       borderColor: c.lineStrong,
@@ -227,7 +257,11 @@ export default function ProfileScreen() {
   }
 
   const save = () => {
-    updateProfile({ name: nameDraft, email: emailDraft });
+    updateProfile({
+      name: nameDraft,
+      email: emailDraft,
+      lifestyle: lifestyleDraft,
+    });
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1600);
   };
@@ -259,12 +293,35 @@ export default function ProfileScreen() {
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={styles.displayName}>{user.name}</Text>
             <Text style={styles.displayEmail}>{user.email}</Text>
+            <Text style={styles.displayEmail}>
+              {lifestyleLabel(user.lifestyle)}
+            </Text>
             {user.isGuest ? (
               <View style={styles.guestPill}>
                 <Text style={styles.guestPillText}>Guest session</Text>
               </View>
             ) : null}
           </View>
+        </View>
+
+        <Text style={styles.section}>Lifestyle</Text>
+        <View style={styles.chipRow}>
+          {LIFESTYLE_OPTIONS.map((option) => {
+            const selected = lifestyleDraft === option.id;
+            return (
+              <Pressable
+                key={option.id}
+                accessibilityRole="button"
+                accessibilityLabel={option.label}
+                onPress={() => setLifestyleDraft(option.id)}
+                style={[styles.chip, selected && styles.chipSelected]}
+              >
+                <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <Text style={styles.section}>Appearance</Text>
@@ -315,6 +372,10 @@ export default function ProfileScreen() {
 
         <Text style={styles.section}>Rhythm snapshot</Text>
         <View style={styles.stats}>
+          <View style={[styles.stat, { backgroundColor: colors.workSoft }]}>
+            <Text style={styles.statLabel}>Lifestyle</Text>
+            <Text style={styles.statValue}>{lifestyleLabel(user.lifestyle)}</Text>
+          </View>
           <View style={[styles.stat, { backgroundColor: colors.todaySoft }]}>
             <Text style={styles.statLabel}>Chronotype</Text>
             <Text style={styles.statValue}>{chronoLabel}</Text>

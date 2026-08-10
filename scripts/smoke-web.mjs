@@ -16,12 +16,39 @@ async function main() {
   await page.waitForTimeout(1000);
 
   await check(results, 'login screen', (await page.getByText('Create your account').count()) > 0);
+  await check(
+    results,
+    'guest option',
+    (await page.getByRole('button', { name: 'Continue as guest' }).count()) > 0
+  );
+
+  // Sign in should not work without a registered account
+  await page.getByRole('button', { name: 'Switch to sign in' }).click();
+  await page.waitForTimeout(200);
+  await page.getByLabel('Email').fill('nobody@kairos.app');
+  await page.getByLabel('Password').fill('wrong');
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await page.waitForTimeout(400);
+  await check(
+    results,
+    'signin requires account',
+    (await page.getByText(/No account found/i).count()) > 0
+  );
+
+  await page.getByRole('button', { name: 'Switch to sign up' }).click();
+  await page.waitForTimeout(200);
+  const email = `maya.${Date.now()}@kairos.app`;
   await page.getByLabel('Full name').fill('Maya Chen');
-  await page.getByLabel('Email').fill('maya@kairos.app');
+  await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('kairos');
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.waitForTimeout(600);
 
+  // Onboarding: lifestyle → chronotype → sleep
+  await page.getByRole('button', { name: 'College student' }).click();
+  await page.waitForTimeout(200);
+  await page.getByRole('button', { name: /Continue/i }).click();
+  await page.waitForTimeout(400);
   await page.getByRole('button', { name: /Continue/i }).click();
   await page.waitForTimeout(400);
   await page.getByRole('button', { name: /Start planning/i }).click();
@@ -58,6 +85,11 @@ async function main() {
   await page.waitForTimeout(500);
   await check(results, 'profile page', (await page.getByText('Your profile').count()) > 0);
   await check(results, 'profile details', (await page.getByText('Maya Chen').count()) > 0);
+  await check(
+    results,
+    'lifestyle on profile',
+    (await page.getByText('College student').count()) > 0
+  );
   await page.getByRole('button', { name: 'You' }).click();
   await page.waitForTimeout(400);
   await check(results, 'you tab', (await page.getByText('Rhythm snapshot').count()) > 0);
@@ -114,6 +146,16 @@ async function main() {
   await settingsLink.click();
   await page.waitForTimeout(700);
   await check(results, 'settings categories', (await page.getByText('Categories').count()) > 0);
+  page.once('dialog', async (dialog) => {
+    await check(
+      results,
+      'repack confirm dialog',
+      /Re-pack this day/i.test(dialog.message())
+    );
+    await dialog.dismiss();
+  });
+  await page.getByRole('button', { name: /Re-pack selected day around sleep/i }).click();
+  await page.waitForTimeout(400);
   await page.getByRole('button', { name: /Switch to dark mode/i }).click();
   await page.waitForTimeout(400);
   await check(results, 'dark mode on', (await page.getByText(/cool teal night palette/i).count()) > 0);

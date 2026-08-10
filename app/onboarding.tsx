@@ -12,8 +12,9 @@ import Animated, { FadeIn, FadeInUp } from 'react-native-reanimated';
 
 import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
-import { Chronotype, useApp } from '@/context/AppContext';
+import { Chronotype, Lifestyle, useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
+import { LIFESTYLE_OPTIONS } from '@/lib/auth';
 import { normalizeTimeInput } from '@/lib/schedule';
 
 const chronotypeOptions: {
@@ -193,8 +194,12 @@ export default function OnboardingScreen() {
     setSleep,
     completeOnboarding,
     isAuthenticated,
+    user,
+    updateProfile,
   } = useApp();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [lifestyle, setLifestyle] = useState<Lifestyle | null>(user?.lifestyle ?? null);
+  const [lifestyleError, setLifestyleError] = useState<string | null>(null);
 
   const [customWake, setCustomWake] = useState(false);
   const [customBed, setCustomBed] = useState(false);
@@ -241,6 +246,11 @@ export default function OnboardingScreen() {
   };
 
   const finish = () => {
+    if (!lifestyle) {
+      setLifestyleError('Choose a lifestyle title to continue');
+      setStep(1);
+      return;
+    }
     // Re-validate custom fields before continuing
     if (customWake || !wakeIsPreset) {
       const normalized = normalizeTimeInput(wakeDraft);
@@ -263,6 +273,7 @@ export default function OnboardingScreen() {
         bedtime: normalized,
       });
     }
+    updateProfile({ lifestyle });
     completeOnboarding();
     router.replace('/(tabs)');
   };
@@ -272,6 +283,7 @@ export default function OnboardingScreen() {
       <Animated.View entering={FadeIn.duration(400)} style={styles.progress}>
         <View style={[styles.dot, step >= 1 && styles.dotActive]} />
         <View style={[styles.dot, step >= 2 && styles.dotActive]} />
+        <View style={[styles.dot, step >= 3 && styles.dotActive]} />
       </Animated.View>
 
       <ScrollView
@@ -282,6 +294,40 @@ export default function OnboardingScreen() {
         <Text style={styles.brand}>Kairos AI</Text>
 
         {step === 1 ? (
+          <Animated.View entering={FadeInUp}>
+            <Text style={styles.title}>What’s your lifestyle?</Text>
+            <Text style={styles.subtitle}>
+              We’ll tailor planning defaults around how you spend your days.
+            </Text>
+            <View style={styles.list}>
+              {LIFESTYLE_OPTIONS.map((option) => {
+                const selected = lifestyle === option.id;
+                return (
+                  <Pressable
+                    key={option.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={option.label}
+                    onPress={() => {
+                      setLifestyle(option.id);
+                      setLifestyleError(null);
+                    }}
+                    style={[styles.option, selected && styles.optionSelected]}
+                  >
+                    <Text
+                      style={[
+                        styles.optionLabel,
+                        selected && styles.optionLabelSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {lifestyleError ? <Text style={styles.error}>{lifestyleError}</Text> : null}
+          </Animated.View>
+        ) : step === 2 ? (
           <Animated.View entering={FadeInUp}>
             <Text style={styles.title}>When does your energy peak?</Text>
             <Text style={styles.subtitle}>
@@ -443,19 +489,28 @@ export default function OnboardingScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        {step === 2 && (
+        {step > 1 ? (
           <PrimaryButton
             label="Back"
             variant="secondary"
-            onPress={() => setStep(1)}
+            onPress={() => setStep((prev) => (prev === 3 ? 2 : 1))}
             style={{ marginBottom: 10 }}
           />
-        )}
+        ) : null}
         <PrimaryButton
-          label={step === 1 ? 'Continue →' : 'Start planning →'}
+          label={step === 3 ? 'Start planning →' : 'Continue →'}
           onPress={() => {
             if (step === 1) {
+              if (!lifestyle) {
+                setLifestyleError('Choose a lifestyle title to continue');
+                return;
+              }
+              updateProfile({ lifestyle });
               setStep(2);
+              return;
+            }
+            if (step === 2) {
+              setStep(3);
               return;
             }
             finish();

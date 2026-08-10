@@ -2,6 +2,13 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from '
 
 import { colors, useTheme } from '@/constants/theme';
 import {
+  findAccount,
+  Lifestyle,
+  loadAccounts,
+  saveAccounts,
+  StoredAccount,
+} from '@/lib/auth';
+import {
   addDays,
   addMinutesToTime,
   applySleepNeedHours,
@@ -25,6 +32,7 @@ import {
 } from '@/lib/schedule';
 
 export type { Category, CategoryDef, Chronotype, DraftTask, Priority, SleepSchedule, Task };
+export type { Lifestyle };
 
 type CoachMessage = { id: string; role: 'ai' | 'user'; text: string };
 type CoachChange = { id: string; label: string; detail: string };
@@ -34,14 +42,22 @@ export type UserProfile = {
   name: string;
   email: string;
   isGuest: boolean;
+  lifestyle: Lifestyle | null;
 };
 
 type AppContextValue = {
   user: UserProfile | null;
   isAuthenticated: boolean;
-  signIn: (input: { email: string; password: string; name?: string }) => string | null;
+  signUp: (input: {
+    email: string;
+    password: string;
+    name: string;
+  }) => string | null;
+  signIn: (input: { email: string; password: string }) => string | null;
   signInAsGuest: () => void;
-  updateProfile: (patch: Partial<Pick<UserProfile, 'name' | 'email'>>) => void;
+  updateProfile: (
+    patch: Partial<Pick<UserProfile, 'name' | 'email' | 'lifestyle'>>
+  ) => void;
   signOut: () => void;
   onboarded: boolean;
   chronotype: Chronotype | null;
@@ -225,6 +241,7 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const { colors: themeColors } = useTheme();
   const defaults = chronotypeDefaults('morning');
+  const [accounts, setAccounts] = useState<StoredAccount[]>(() => loadAccounts());
   const [user, setUser] = useState<UserProfile | null>(null);
   const [onboarded, setOnboarded] = useState(false);
   const [chronotype, setChronotypeState] = useState<Chronotype | null>('morning');
@@ -232,6 +249,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
+
+  useEffect(() => {
+    saveAccounts(accounts);
+  }, [accounts]);
   const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([
     {
       id: 'c1',
@@ -679,22 +700,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       isAuthenticated: !!user,
-      signIn: ({ email, password, name }) => {
+      signUp: ({ email, password, name }) => {
         const trimmedEmail = email.trim().toLowerCase();
+        const trimmedName = name.trim();
+        if (!trimmedName) {
+          return 'Enter your name to create an account';
+        }
         if (!trimmedEmail || !trimmedEmail.includes('@')) {
           return 'Enter a valid email address';
         }
         if (!password || password.length < 4) {
           return 'Password needs at least 4 characters';
         }
-        const derivedName =
-          name?.trim() ||
-          trimmedEmail.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        if (findAccount(trimmedEmail, accounts)) {
+          return 'An account with this email already exists — sign in instead';
+        }
+        const nextAccount: StoredAccount = {
+          email: trimmedEmail,
+          password,
+          name: trimmedName,
+          lifestyle: null,
+        };
+        setAccounts((prev) => [...prev, nextAccount]);
         setUser({
           id: `u-${Date.now()}`,
-          name: derivedName || 'Kairos User',
+          name: trimmedName,
           email: trimmedEmail,
           isGuest: false,
+          lifestyle: null,
+        });
+        setOnboarded(false);
+        return null;
+      },
+      signIn: ({ email, password }) => {
+        const trimmedEmail = email.trim().toLowerCase();
+        if (!trimmedEmail || !trimmedEmail.includes('@')) {
+          return 'Enter a valid email address';
+        }
+        if (!password) {
+          return 'Enter your password';
+        }
+        const account = findAccount(trimmedEmail, accounts);
+        if (!account) {
+          return 'No account found for this email — create one or continue as guest';
+        }
+        if (account.password !== password) {
+          return 'Incorrect password';
+        }
+        setUser({
+          id: `u-${account.email}`,
+          name: account.name,
+          email: account.email,
+          isGuest: false,
+          lifestyle: account.lifestyle,
         });
         return null;
       },
@@ -704,19 +762,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           name: 'Guest',
           email: 'guest@kairos.app',
           isGuest: true,
+          lifestyle: null,
         });
+        setOnboarded(false);
       },
       updateProfile: (patch) => {
         setUser((prev) => {
           if (!prev) return prev;
-          return {
+          const next: UserProfile = {
             ...prev,
             name: patch.name !== undefined ? patch.name.trim() || prev.name : prev.name,
             email:
               patch.email !== undefined
                 ? patch.email.trim().toLowerCase() || prev.email
                 : prev.email,
+            lifestyle:
+              patch.lifestyle !== undefined ? patch.lifestyle : prev.lifestyle,
           };
+          if (!prev.isGuest) {
+            setAccounts((list) =>
+              list.map((account) =>
+                account.email === prev.email
+                  ? {
+                      ...account,
+                      name: next.name,
+                      email: next.email,
+                      lifestyle: next.lifestyle,
+                    }
+                  : account
+              )
+            );
+          }
+          return next;
         });
       },
       signOut: () => {
@@ -887,6 +964,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       user,
+      accounts,
       onboarded,
       chronotype,
       sleep,

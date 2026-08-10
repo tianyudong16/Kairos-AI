@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import {
+  Alert,
+  Platform,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -458,7 +466,27 @@ export default function SettingsScreen() {
 
       <PrimaryButton
         label="Re-pack selected day around sleep"
-        onPress={() => optimizeSchedule(selectedDate)}
+        onPress={() => {
+          const title = 'Re-pack this day?';
+          const message =
+            'Tasks on the selected day will be rearranged around your sleep window. This cannot be undone.';
+          const confirm = () => {
+            optimizeSchedule(selectedDate);
+          };
+          if (Platform.OS === 'web') {
+            if (
+              typeof window !== 'undefined' &&
+              window.confirm(`${title}\n\n${message}`)
+            ) {
+              confirm();
+            }
+            return;
+          }
+          Alert.alert(title, message, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Re-pack', style: 'destructive', onPress: confirm },
+          ]);
+        }}
       />
 
       <CategoryEditModal

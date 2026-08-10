@@ -1,7 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -11,6 +8,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
@@ -22,12 +21,17 @@ type Mode = 'signin' | 'signup';
 export default function LoginScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { signIn, signInAsGuest, onboarded } = useApp();
+  const { signIn, signUp, signInAsGuest, onboarded, isAuthenticated } = useApp();
   const [mode, setMode] = useState<Mode>('signup');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    router.replace(onboarded ? '/(tabs)' : '/onboarding');
+  }, [isAuthenticated, onboarded, router]);
 
   const styles = useThemedStyles((c) => ({
     flex: { flex: 1 },
@@ -111,15 +115,34 @@ export default function LoginScreen() {
       color: c.inkMuted,
       lineHeight: 17,
     },
-    guestLink: {
-      alignSelf: 'center' as const,
-      paddingVertical: 8,
+    dividerRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+      marginTop: 4,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: c.lineStrong,
+    },
+    dividerText: {
+      fontFamily: fonts.medium,
+      fontSize: 12,
+      color: c.inkMuted,
+    },
+    guestBtn: {
+      borderRadius: radii.pill,
+      borderWidth: 1.5,
+      borderColor: c.lineStrong,
+      backgroundColor: c.bg,
+      paddingVertical: 14,
+      alignItems: 'center' as const,
     },
     guestText: {
-      fontFamily: fonts.medium,
-      fontSize: 13,
-      color: c.inkMuted,
-      textDecorationLine: 'underline' as const,
+      fontFamily: fonts.semibold,
+      fontSize: 15,
+      color: c.ink,
     },
   }));
 
@@ -128,15 +151,10 @@ export default function LoginScreen() {
   };
 
   const submit = () => {
-    if (mode === 'signup' && !name.trim()) {
-      setError('Enter your name to create an account');
-      return;
-    }
-    const result = signIn({
-      email,
-      password,
-      name: mode === 'signup' ? name : undefined,
-    });
+    const result =
+      mode === 'signup'
+        ? signUp({ email, password, name })
+        : signIn({ email, password });
     if (result) {
       setError(result);
       return;
@@ -179,8 +197,7 @@ export default function LoginScreen() {
               {mode === 'signin' ? 'Welcome back' : 'Create your account'}
             </Text>
             <Text style={styles.subhead}>
-              Enter your details to personalize your energy schedule, chronotype, and
-              profile.
+              Sign up or sign in to keep your schedule. Prefer not to? Continue as guest.
             </Text>
           </Animated.View>
 
@@ -268,18 +285,26 @@ export default function LoginScreen() {
             />
 
             <Text style={styles.hint}>
-              Prototype auth — your details stay on this device for the session.
+              {mode === 'signin'
+                ? 'Sign in only works with an account you already created on this device.'
+                : 'Creating an account saves your profile on this device for later sign-in.'}
             </Text>
-          </Animated.View>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Continue as guest"
-            onPress={guest}
-            style={styles.guestLink}
-          >
-            <Text style={styles.guestText}>Continue without an account</Text>
-          </Pressable>
+            <View style={styles.dividerRow}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue as guest"
+              onPress={guest}
+              style={styles.guestBtn}
+            >
+              <Text style={styles.guestText}>Continue as guest</Text>
+            </Pressable>
+          </Animated.View>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
