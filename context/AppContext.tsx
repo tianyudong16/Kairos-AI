@@ -8,6 +8,20 @@ import {
   saveAccounts,
   StoredAccount,
 } from '@/lib/auth';
+import {
+  CalendarConnection,
+  CalendarProviderId,
+  loadConnections,
+  pullDeviceEvents,
+  pullGoogleEvents,
+  pullMicrosoftEvents,
+  pushDeviceEvents,
+  pushGoogleEvents,
+  pushMicrosoftEvents,
+  RemoteEvent,
+  saveConnections,
+  SyncTaskPatch,
+} from '@/lib/calendar-sync';
 import { ImportedCalendarEvent } from '@/lib/ics';
 import {
   addDays,
@@ -92,6 +106,21 @@ type AppContextValue = {
   reorderTask: (id: string, direction: 'up' | 'down') => void;
   moveTaskDate: (id: string, date: string) => void;
   optimizeSchedule: (date?: string) => string;
+  calendarConnections: Record<CalendarProviderId, CalendarConnection>;
+  setCalendarConnection: (
+    provider: CalendarProviderId,
+    connection: CalendarConnection
+  ) => void;
+  pullCalendar: (
+    provider: CalendarProviderId,
+    daysAhead?: number
+  ) => Promise<{ pulled: number; message: string }>;
+  pushCalendar: (
+    provider: CalendarProviderId
+  ) => Promise<{ created: number; updated: number; failed: number; message: string }>;
+  syncCalendar: (
+    provider: CalendarProviderId
+  ) => Promise<{ message: string }>;
   coachMessages: CoachMessage[];
   lastCoachChanges: CoachChange[];
   sendCoachMessage: (text: string) => void;
@@ -253,10 +282,82 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [categories, setCategories] = useState<CategoryDef[]>(DEFAULT_CATEGORIES);
+  const [calendarConnections, setCalendarConnections] = useState(() =>
+    loadConnections()
+  );
 
   useEffect(() => {
     saveAccounts(accounts);
   }, [accounts]);
+
+  useEffect(() => {
+    saveConnections(calendarConnections);
+  }, [calendarConnections]);
+
+  const upsertRemoteEvents = (
+    provider: CalendarProviderId,
+    events: RemoteEvent[]
+  ) => {
+    let pulled = 0;
+    setTasks((prev) => {
+      const next = [...prev];
+      const byExternal = new Map(
+        prev
+          .filter((t) => t.provider === provider && t.externalId)
+          .map((t) => [t.externalId!, t])
+      );
+      const orderByDate: Record<string, number> = {};
+      prev.forEach((task) => {
+        orderByDate[task.date] = Math.max(orderByDate[task.date] ?? -1, task.order);
+      });
+
+      events.forEach((event) => {
+        const existing = byExternal.get(event.id);
+        if (existing) {
+          const index = next.findIndex((t) => t.id === existing.id);
+          if (index >= 0) {
+            next[index] = {
+              ...next[index],
+              title: event.title,
+              date: event.date,
+              start: event.start,
+              end: event.end,
+              durationMinutes: event.durationMinutes,
+              externalId: event.id,
+              externalCalendarId: event.calendarId,
+              provider,
+              syncDirty: false,
+            };
+            pulled += 1;
+          }
+          return;
+        }
+        const order = (orderByDate[event.date] ?? -1) + 1;
+        orderByDate[event.date] = order;
+        next.push({
+          id: `${provider}-${event.id}`,
+          title: event.title,
+          date: event.date,
+          start: event.start,
+          end: event.end,
+          durationMinutes: event.durationMinutes,
+          category: /lunch|dinner|personal/i.test(event.title) ? 'life' : 'work',
+          priority: 'medium',
+          icon: iconForCategory(
+            /lunch|dinner|personal/i.test(event.title) ? 'life' : 'work'
+          ),
+          order,
+          externalId: event.id,
+          externalCalendarId: event.calendarId,
+          provider,
+          syncDirty: false,
+        });
+        pulled += 1;
+      });
+      return next;
+    });
+    return pulled;
+  };
   const [coachMessages, setCoachMessages] = useState<CoachMessage[]>([
     {
       id: 'c1',
@@ -942,6 +1043,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               priority: event.priority,
               icon: iconForCategory(event.category),
               order,
+              provider: 'ics',
+              externalId: event.uid,
+              syncDirty: false,
             });
             imported += 1;
           });
@@ -957,6 +1061,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             const next = { ...task, ...patch };
             if (patch.start || patch.durationMinutes) {
               next.end = addMinutesToTime(next.start, next.durationMinutes);
+            }
+            if (
+              patch.syncDirty === undefined &&
+              (patch.title ||
+                patch.start ||
+                patch.end ||
+                patch.date ||
+                patch.durationMinutes ||
+                patch.priority ||
+                patch.category)
+            ) {
+              next.syncDirty = true;
             }
             return next;
           })
@@ -994,6 +1110,197 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
       },
       optimizeSchedule,
+      calendarConnections,
+      setCalendarConnection: (provider, connection) => {
+        setCalendarConnections((prev) => ({
+          ...prev,
+          [provider]: connection,
+        }));
+      },
+      pullCalendar: async (provider, daysAhead = 14) => {
+        const connection = calendarConnections[provider];
+        if (!connection?.connected) {
+          throw new Error('Connect this calendar first.');
+        }
+        const rangeStart = new Date();
+        rangeStart.setHours(0, 0, 0, 0);
+        const rangeEnd = new Date(rangeStart);
+        rangeEnd.setDate(rangeEnd.getDate() + daysAhead);
+
+        let result;
+        if (provider === 'google') {
+          result = await pullGoogleEvents(connection, rangeStart, rangeEnd);
+        } else if (provider === 'microsoft') {
+          result = await pullMicrosoftEvents(connection, rangeStart, rangeEnd);
+        } else {
+          result = await pullDeviceEvents(connection, rangeStart, rangeEnd);
+        }
+
+        const pulled = upsertRemoteEvents(provider, result.events);
+        setCalendarConnections((prev) => ({
+          ...prev,
+          [provider]: {
+            ...prev[provider],
+            lastPulledAt: new Date().toISOString(),
+          },
+        }));
+        return {
+          pulled,
+          message: `Pulled ${pulled} event${pulled === 1 ? '' : 's'} from ${provider}.`,
+        };
+      },
+      pushCalendar: async (provider) => {
+        const connection = calendarConnections[provider];
+        if (!connection?.connected) {
+          throw new Error('Connect this calendar first.');
+        }
+        // Prefer pushing dirty tasks + local-only tasks for this provider window
+        const toPush: SyncTaskPatch[] = tasks
+          .filter(
+            (task) =>
+              task.syncDirty ||
+              !task.externalId ||
+              (task.provider === provider && task.syncDirty)
+          )
+          .map((task) => ({
+            id: task.id,
+            title: task.title,
+            date: task.date,
+            start: task.start,
+            end: task.end,
+            durationMinutes: task.durationMinutes,
+            category: task.category,
+            priority: task.priority,
+            externalId: task.externalId,
+            externalCalendarId: task.externalCalendarId,
+            provider: task.provider as CalendarProviderId | undefined,
+            syncDirty: task.syncDirty,
+          }));
+
+        // If nothing dirty, push recent local tasks without external ids
+        const payload =
+          toPush.length > 0
+            ? toPush
+            : tasks
+                .filter((task) => !task.externalId)
+                .slice(0, 40)
+                .map((task) => ({
+                  id: task.id,
+                  title: task.title,
+                  date: task.date,
+                  start: task.start,
+                  end: task.end,
+                  durationMinutes: task.durationMinutes,
+                  category: task.category,
+                  priority: task.priority,
+                  externalId: task.externalId,
+                  externalCalendarId: task.externalCalendarId,
+                  provider: task.provider as CalendarProviderId | undefined,
+                  syncDirty: task.syncDirty,
+                }));
+
+        let result;
+        if (provider === 'google') {
+          result = await pushGoogleEvents(connection, payload);
+        } else if (provider === 'microsoft') {
+          result = await pushMicrosoftEvents(connection, payload);
+        } else {
+          result = await pushDeviceEvents(connection, payload);
+        }
+
+        if (result.created + result.updated > 0) {
+          setTasks((prev) =>
+            prev.map((task) =>
+              payload.some((p) => p.id === task.id)
+                ? { ...task, syncDirty: false, provider }
+                : task
+            )
+          );
+        }
+        setCalendarConnections((prev) => ({
+          ...prev,
+          [provider]: {
+            ...prev[provider],
+            lastPushedAt: new Date().toISOString(),
+          },
+        }));
+
+        return {
+          ...result,
+          message: `Pushed to ${provider}: ${result.created} created, ${result.updated} updated${
+            result.failed ? `, ${result.failed} failed` : ''
+          }.`,
+        };
+      },
+      syncCalendar: async (provider) => {
+        const pull = await (async () => {
+          const connection = calendarConnections[provider];
+          if (!connection?.connected) throw new Error('Connect this calendar first.');
+          const rangeStart = new Date();
+          rangeStart.setHours(0, 0, 0, 0);
+          const rangeEnd = new Date(rangeStart);
+          rangeEnd.setDate(rangeEnd.getDate() + 14);
+          if (provider === 'google') {
+            return pullGoogleEvents(connection, rangeStart, rangeEnd);
+          }
+          if (provider === 'microsoft') {
+            return pullMicrosoftEvents(connection, rangeStart, rangeEnd);
+          }
+          return pullDeviceEvents(connection, rangeStart, rangeEnd);
+        })();
+        const pulled = upsertRemoteEvents(provider, pull.events);
+        // Push after pull using latest tasks snapshot via functional approach
+        const connection = calendarConnections[provider];
+        const payload: SyncTaskPatch[] = tasks
+          .filter((task) => task.syncDirty || !task.externalId)
+          .map((task) => ({
+            id: task.id,
+            title: task.title,
+            date: task.date,
+            start: task.start,
+            end: task.end,
+            durationMinutes: task.durationMinutes,
+            category: task.category,
+            priority: task.priority,
+            externalId: task.externalId,
+            externalCalendarId: task.externalCalendarId,
+            provider: task.provider as CalendarProviderId | undefined,
+            syncDirty: task.syncDirty,
+          }));
+        let pushResult = { created: 0, updated: 0, failed: 0, errors: [] as string[] };
+        if (payload.length) {
+          if (provider === 'google') {
+            pushResult = await pushGoogleEvents(connection, payload);
+          } else if (provider === 'microsoft') {
+            pushResult = await pushMicrosoftEvents(connection, payload);
+          } else {
+            pushResult = await pushDeviceEvents(connection, payload);
+          }
+          if (pushResult.created + pushResult.updated > 0) {
+            setTasks((prev) =>
+              prev.map((task) =>
+                payload.some((p) => p.id === task.id)
+                  ? { ...task, syncDirty: false, provider }
+                  : task
+              )
+            );
+          }
+        }
+        const now = new Date().toISOString();
+        setCalendarConnections((prev) => ({
+          ...prev,
+          [provider]: {
+            ...prev[provider],
+            lastPulledAt: now,
+            lastPushedAt: now,
+          },
+        }));
+        return {
+          message: `Synced ${provider}: pulled ${pulled}, pushed ${
+            pushResult.created + pushResult.updated
+          }.`,
+        };
+      },
       coachMessages,
       lastCoachChanges,
       sendCoachMessage: (text) => {
@@ -1018,6 +1325,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       categories,
       tasks,
       tasksForSelectedDate,
+      calendarConnections,
       coachMessages,
       lastCoachChanges,
       capacitySummary,

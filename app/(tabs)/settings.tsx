@@ -249,7 +249,24 @@ export default function SettingsScreen() {
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
       </Pressable>
 
-      <Text style={styles.section}>Calendar import</Text>
+      <Text style={styles.section}>Calendars</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open live calendar sync"
+        onPress={() => router.push('/calendar-sync' as any)}
+        style={styles.themeRow}
+      >
+        <View style={styles.themeIcon}>
+          <Ionicons name="sync-outline" size={18} color={colors.coach} />
+        </View>
+        <View style={styles.themeCopy}>
+          <Text style={styles.themeTitle}>Live calendar sync</Text>
+          <Text style={styles.themeMeta}>
+            Google, Outlook, Apple & Samsung — pull and push events
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Import Outlook or other calendar"
@@ -260,9 +277,9 @@ export default function SettingsScreen() {
           <Ionicons name="calendar-outline" size={18} color={colors.coach} />
         </View>
         <View style={styles.themeCopy}>
-          <Text style={styles.themeTitle}>Import from Outlook</Text>
+          <Text style={styles.themeTitle}>Import .ics file</Text>
           <Text style={styles.themeMeta}>
-            Upload a `.ics` export to bring work events into Kairos
+            One-time Outlook/Google/Apple export upload
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />

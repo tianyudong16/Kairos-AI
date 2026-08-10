@@ -62,6 +62,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="profile" />
           <Stack.Screen name="import-calendar" />
+          <Stack.Screen name="calendar-sync" />
           <Stack.Screen
             name="ai-input"
             options={{

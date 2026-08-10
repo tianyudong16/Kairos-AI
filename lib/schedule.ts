@@ -18,6 +18,8 @@ export type CategoryDef = {
   builtIn?: boolean;
 };
 
+export type CalendarProvider = 'google' | 'microsoft' | 'device' | 'ics';
+
 export type Task = {
   id: string;
   title: string;
@@ -29,6 +31,12 @@ export type Task = {
   priority: Priority;
   icon: TaskIcon;
   order: number;
+  /** Remote event id when synced from/to an external calendar */
+  externalId?: string;
+  externalCalendarId?: string;
+  provider?: CalendarProvider;
+  /** Local edits waiting to be pushed */
+  syncDirty?: boolean;
 };
 
 export type DraftTask = {

@@ -11,7 +11,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.kairosai.mobile",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCalendarsUsageDescription": "Kairos AI syncs your schedule with Apple Calendar and other calendars on this iPhone.",
+        "NSCalendarsFullAccessUsageDescription": "Kairos AI reads and writes events so your plan stays in sync with Apple Calendar.",
+        "NSRemindersUsageDescription": "Kairos AI may access reminders linked to your calendars when syncing."
+      }
     },
     "android": {
       "package": "app.kairosai.mobile",
@@ -22,7 +27,11 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "READ_CALENDAR",
+        "WRITE_CALENDAR"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -37,6 +46,12 @@
           "image": "./assets/images/splash-icon.png",
           "resizeMode": "contain",
           "backgroundColor": "#F2EFE6"
+        }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Kairos AI syncs events with your calendars (Apple, Samsung, Google, Outlook accounts on this device)."
         }
       ]
     ],

@@ -147,6 +147,30 @@ async function main() {
   await page.waitForTimeout(700);
   await check(results, 'settings categories', (await page.getByText('Categories').count()) > 0);
 
+  await page.getByRole('button', { name: 'Open live calendar sync' }).click();
+  await page.waitForTimeout(500);
+  await check(results, 'live sync screen', (await page.getByText('Live calendar sync').count()) > 0);
+  await check(results, 'google provider card', (await page.getByText('Google Calendar').count()) > 0);
+  await check(
+    results,
+    'outlook provider card',
+    (await page.getByText(/Outlook \/ Microsoft 365/i).count()) > 0
+  );
+  await check(
+    results,
+    'device provider card',
+    (await page.getByText(/Apple \/ Samsung \/ Device/i).count()) > 0
+  );
+  await page.getByRole('button', { name: 'Show calendar sync setup instructions' }).click();
+  await page.waitForTimeout(200);
+  await check(
+    results,
+    'sync setup guide',
+    (await page.getByText(/EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID/i).count()) > 0
+  );
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.waitForTimeout(400);
+
   await page.getByRole('button', { name: 'Import Outlook or other calendar' }).click();
   await page.waitForTimeout(500);
   await check(results, 'import screen', (await page.getByText('Import calendar').count()) > 0);
