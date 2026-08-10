@@ -146,6 +146,19 @@ async function main() {
   await settingsLink.click();
   await page.waitForTimeout(700);
   await check(results, 'settings categories', (await page.getByText('Categories').count()) > 0);
+
+  await page.getByRole('button', { name: 'Import Outlook or other calendar' }).click();
+  await page.waitForTimeout(500);
+  await check(results, 'import screen', (await page.getByText('Import calendar').count()) > 0);
+  await page.getByRole('button', { name: 'Load sample Outlook calendar' }).click();
+  await page.waitForTimeout(400);
+  await check(results, 'ics preview', (await page.getByText('Team standup').count()) > 0);
+  await page.getByRole('button', { name: /Import \d+ events/i }).click();
+  await page.waitForTimeout(400);
+  await check(results, 'ics imported', (await page.getByText(/Imported \d+ event/i).count()) > 0);
+  await page.getByRole('button', { name: 'Back' }).click();
+  await page.waitForTimeout(400);
+
   page.once('dialog', async (dialog) => {
     await check(
       results,

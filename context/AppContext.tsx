@@ -8,6 +8,7 @@ import {
   saveAccounts,
   StoredAccount,
 } from '@/lib/auth';
+import { ImportedCalendarEvent } from '@/lib/ics';
 import {
   addDays,
   addMinutesToTime,
@@ -83,6 +84,9 @@ type AppContextValue = {
     start?: string;
   }) => void;
   addDraftTasks: (drafts: DraftTask[], date?: string) => void;
+  importCalendarEvents: (
+    events: ImportedCalendarEvent[]
+  ) => { imported: number; skipped: number };
   updateTask: (id: string, patch: Partial<Task>) => void;
   deleteTask: (id: string) => void;
   reorderTask: (id: string, direction: 'up' | 'down') => void;
@@ -903,6 +907,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           });
           return [...prev, ...mapped];
         });
+      },
+      importCalendarEvents: (events) => {
+        let summary = { imported: 0, skipped: 0 };
+        setTasks((prev) => {
+          const next = [...prev];
+          const existingKeys = new Set(
+            prev.map((task) => `${task.date}|${task.start}|${task.title.toLowerCase()}`)
+          );
+          const orderByDate: Record<string, number> = {};
+          prev.forEach((task) => {
+            orderByDate[task.date] = Math.max(orderByDate[task.date] ?? -1, task.order);
+          });
+
+          let imported = 0;
+          let skipped = 0;
+          events.forEach((event, index) => {
+            const key = `${event.date}|${event.start}|${event.title.toLowerCase()}`;
+            if (existingKeys.has(key)) {
+              skipped += 1;
+              return;
+            }
+            existingKeys.add(key);
+            const order = (orderByDate[event.date] ?? -1) + 1;
+            orderByDate[event.date] = order;
+            next.push({
+              id: `ics-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+              title: event.title,
+              date: event.date,
+              start: event.start,
+              end: event.end || addMinutesToTime(event.start, event.durationMinutes),
+              durationMinutes: event.durationMinutes,
+              category: event.category,
+              priority: event.priority,
+              icon: iconForCategory(event.category),
+              order,
+            });
+            imported += 1;
+          });
+          summary = { imported, skipped };
+          return next;
+        });
+        return summary;
       },
       updateTask: (id, patch) => {
         setTasks((prev) =>

@@ -249,6 +249,25 @@ export default function SettingsScreen() {
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
       </Pressable>
 
+      <Text style={styles.section}>Calendar import</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Import Outlook or other calendar"
+        onPress={() => router.push('/import-calendar' as any)}
+        style={styles.themeRow}
+      >
+        <View style={styles.themeIcon}>
+          <Ionicons name="calendar-outline" size={18} color={colors.coach} />
+        </View>
+        <View style={styles.themeCopy}>
+          <Text style={styles.themeTitle}>Import from Outlook</Text>
+          <Text style={styles.themeMeta}>
+            Upload a `.ics` export to bring work events into Kairos
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </Pressable>
+
       <Text style={styles.section}>Appearance</Text>
       <Pressable
         accessibilityRole="button"
