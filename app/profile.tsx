@@ -398,12 +398,23 @@ export default function ProfileScreen() {
 
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Import and export calendars"
+          onPress={() => router.push('/calendar-sync' as any)}
+          style={styles.linkRow}
+        >
+          <Ionicons name="swap-horizontal-outline" size={18} color={colors.ink} />
+          <Text style={styles.linkText}>Import & export calendars</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Open sleep and category settings"
           onPress={() => router.push('/(tabs)/settings')}
           style={styles.linkRow}
         >
           <Ionicons name="settings-outline" size={18} color={colors.ink} />
-          <Text style={styles.linkText}>Open sleep & category settings</Text>
+          <Text style={styles.linkText}>Sleep, categories & more settings</Text>
           <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
         </Pressable>
 

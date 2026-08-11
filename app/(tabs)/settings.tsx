@@ -235,7 +235,8 @@ export default function SettingsScreen() {
       <Text style={styles.brand}>Kairos AI</Text>
       <Text style={styles.title}>Settings</Text>
       <Text style={styles.subtitle}>
-        Personalize sleep, chronotype, and categories — schedule adapts around your capacity.
+        Personalize sleep, chronotype, and categories — plus import & export with
+        Google, Outlook, or Apple.
       </Text>
 
       <Pressable onPress={() => router.push('/profile')} style={styles.profileLink}>
@@ -249,37 +250,54 @@ export default function SettingsScreen() {
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
       </Pressable>
 
-      <Text style={styles.section}>Calendars</Text>
+      <Text style={styles.section}>Import & export calendars</Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Open live calendar sync"
+        accessibilityLabel="Import and export with Google Outlook or Apple"
         onPress={() => router.push('/calendar-sync' as any)}
         style={styles.themeRow}
       >
         <View style={styles.themeIcon}>
-          <Ionicons name="sync-outline" size={18} color={colors.coach} />
+          <Ionicons name="swap-horizontal-outline" size={18} color={colors.coach} />
         </View>
         <View style={styles.themeCopy}>
-          <Text style={styles.themeTitle}>Live calendar sync</Text>
+          <Text style={styles.themeTitle}>Google · Outlook · Apple / Samsung</Text>
           <Text style={styles.themeMeta}>
-            Google, Outlook, Apple & Samsung — pull and push events
+            Connect a calendar, then Import or Export
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Import Outlook or other calendar"
+        accessibilityLabel="Import Outlook or other calendar from ics file"
         onPress={() => router.push('/import-calendar' as any)}
         style={styles.themeRow}
       >
         <View style={styles.themeIcon}>
-          <Ionicons name="calendar-outline" size={18} color={colors.coach} />
+          <Ionicons name="download-outline" size={18} color={colors.coach} />
         </View>
         <View style={styles.themeCopy}>
           <Text style={styles.themeTitle}>Import .ics file</Text>
           <Text style={styles.themeMeta}>
-            One-time Outlook/Google/Apple export upload
+            One-time Outlook/Google/Apple file upload
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open calendar tab to export ics"
+        onPress={() => router.push('/(tabs)/calendar')}
+        style={styles.themeRow}
+      >
+        <View style={styles.themeIcon}>
+          <Ionicons name="share-outline" size={18} color={colors.coach} />
+        </View>
+        <View style={styles.themeCopy}>
+          <Text style={styles.themeTitle}>Export .ics file</Text>
+          <Text style={styles.themeMeta}>
+            Download your Kairos schedule for other apps
           </Text>
         </View>
         <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />

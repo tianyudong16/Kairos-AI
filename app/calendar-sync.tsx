@@ -220,10 +220,10 @@ export default function CalendarSyncScreen() {
         </View>
 
         <Text style={styles.brand}>Kairos AI</Text>
-        <Text style={styles.title}>Live calendar sync</Text>
+        <Text style={styles.title}>Import & export</Text>
         <Text style={styles.subtitle}>
-          Connect Google, Outlook, or this phone’s calendars (Apple / Samsung). Pull
-          events into Kairos and push Kairos tasks back out.
+          Connect Google, Outlook, or this phone’s calendars (Apple / Samsung). Import
+          events into Kairos and export Kairos tasks back out.
         </Text>
 
         <Pressable
@@ -303,10 +303,10 @@ export default function CalendarSyncScreen() {
                   {connection.accountLabel || meta.label}
                   {connection.calendarTitle ? ` · ${connection.calendarTitle}` : ''}
                   {connection.lastPulledAt
-                    ? `\nLast pull: ${new Date(connection.lastPulledAt).toLocaleString()}`
+                    ? `\nLast import: ${new Date(connection.lastPulledAt).toLocaleString()}`
                     : ''}
                   {connection.lastPushedAt
-                    ? `\nLast push: ${new Date(connection.lastPushedAt).toLocaleString()}`
+                    ? `\nLast export: ${new Date(connection.lastPushedAt).toLocaleString()}`
                     : ''}
                 </Text>
               ) : null}
@@ -362,7 +362,7 @@ export default function CalendarSyncScreen() {
                 ) : (
                   <>
                     <PrimaryButton
-                      label="Pull"
+                      label="Import"
                       variant="secondary"
                       onPress={() =>
                         run(`pull-${provider}`, async () => {
@@ -372,7 +372,7 @@ export default function CalendarSyncScreen() {
                       }
                     />
                     <PrimaryButton
-                      label="Push"
+                      label="Export"
                       variant="secondary"
                       onPress={() =>
                         run(`push-${provider}`, async () => {
@@ -382,7 +382,7 @@ export default function CalendarSyncScreen() {
                       }
                     />
                     <PrimaryButton
-                      label="Sync both"
+                      label="Import & export"
                       onPress={() =>
                         run(`sync-${provider}`, async () => {
                           const res = await syncCalendar(provider);
@@ -425,10 +425,31 @@ export default function CalendarSyncScreen() {
         {message ? <Text style={styles.success}>{message}</Text> : null}
 
         <Text style={styles.note}>
-          Pull brings remote events into Kairos. Push sends Kairos tasks (new or edited)
-          to the connected calendar — including Outlook. One-way .ics import remains in
-          Settings if you prefer file export.
+          Import brings remote events into Kairos. Export sends Kairos tasks (new or
+          edited) to the connected calendar — including Outlook.
         </Text>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Import calendar from ics file"
+          onPress={() => router.push('/import-calendar' as any)}
+          style={styles.card}
+        >
+          <Text style={styles.cardTitle}>Import .ics file</Text>
+          <Text style={styles.note}>
+            One-time upload from an Outlook, Google, or Apple calendar export.
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to calendar"
+          onPress={() => router.push('/(tabs)/calendar')}
+          style={styles.card}
+        >
+          <Text style={styles.cardTitle}>Export .ics from Calendar tab</Text>
+          <Text style={styles.note}>
+            Prefer a file? Open Calendar → Export .ics file to download your schedule.
+          </Text>
+        </Pressable>
         {Platform.OS === 'web' ? (
           <Text style={styles.note}>
             Running on web: Google/Outlook OAuth work here once client IDs are set. Apple

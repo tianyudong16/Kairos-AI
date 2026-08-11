@@ -203,6 +203,87 @@ export function parseIcs(raw: string): ImportedCalendarEvent[] {
   );
 }
 
+function escapeIcsText(value: string) {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\n/g, '\\n');
+}
+
+function toIcsDateTime(dateKey: string, time: string) {
+  const [y, m, d] = dateKey.split('-');
+  const [hh, mm] = time.split(':');
+  return `${y}${m}${d}T${pad2(Number(hh))}${pad2(Number(mm))}00`;
+}
+
+/** Build a .ics calendar file from Kairos tasks (for Outlook/Google/Apple import). */
+export function tasksToIcs(
+  tasks: Array<{
+    id: string;
+    title: string;
+    date: string;
+    start: string;
+    end: string;
+    category?: string;
+    priority?: string;
+  }>
+) {
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Kairos AI//Export//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+  ];
+  for (const task of tasks) {
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${task.id}@kairos.ai`,
+      `DTSTAMP:${stamp}`,
+      `DTSTART:${toIcsDateTime(task.date, task.start)}`,
+      `DTEND:${toIcsDateTime(task.date, task.end)}`,
+      `SUMMARY:${escapeIcsText(task.title)}`
+    );
+    if (task.category) {
+      lines.push(`CATEGORIES:${escapeIcsText(task.category)}`);
+    }
+    if (task.priority) {
+      lines.push(`PRIORITY:${task.priority === 'high' ? 1 : task.priority === 'low' ? 9 : 5}`);
+    }
+    lines.push('END:VEVENT');
+  }
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+/** Download (web) or return ics text for native share/copy. */
+export function shareIcsFile(filename: string, content: string): 'downloaded' | 'copied' {
+  if (typeof document !== 'undefined') {
+    const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+    return 'downloaded';
+  }
+  if (typeof navigator !== 'undefined' && 'clipboard' in navigator) {
+    void (navigator as Navigator & { clipboard: { writeText: (t: string) => Promise<void> } })
+      .clipboard.writeText(content)
+      .catch(() => undefined);
+    return 'copied';
+  }
+  return 'copied';
+}
+
 /** Tiny sample used for demos / smoke tests (Outlook-style export). */
 export const SAMPLE_OUTLOOK_ICS = `BEGIN:VCALENDAR
 VERSION:2.0

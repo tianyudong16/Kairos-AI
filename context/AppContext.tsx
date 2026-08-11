@@ -1146,7 +1146,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }));
         return {
           pulled,
-          message: `Pulled ${pulled} event${pulled === 1 ? '' : 's'} from ${provider}.`,
+          message: `Imported ${pulled} event${pulled === 1 ? '' : 's'} from ${provider}.`,
         };
       },
       pushCalendar: async (provider) => {
@@ -1227,7 +1227,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         return {
           ...result,
-          message: `Pushed to ${provider}: ${result.created} created, ${result.updated} updated${
+          message: `Exported to ${provider}: ${result.created} created, ${result.updated} updated${
             result.failed ? `, ${result.failed} failed` : ''
           }.`,
         };
@@ -1296,9 +1296,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           },
         }));
         return {
-          message: `Synced ${provider}: pulled ${pulled}, pushed ${
+          message: `Imported ${pulled} and exported ${
             pushResult.created + pushResult.updated
-          }.`,
+          } for ${provider}.`,
         };
       },
       coachMessages,

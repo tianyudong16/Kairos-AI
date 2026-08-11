@@ -1,9 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
+import { shareIcsFile, tasksToIcs } from '@/lib/ics';
 import {
   formatDisplayDate,
   getMonthMatrix,
@@ -13,14 +15,47 @@ import {
   toDateKey,
   addDays,
 } from '@/lib/schedule';
-import { fonts, radii, useThemedStyles } from '@/constants/theme';
+import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+const calendarPorts = [
+  {
+    key: 'google',
+    title: 'Google Calendar',
+    meta: 'Import events in · export Kairos tasks out',
+    icon: 'logo-google' as const,
+    href: '/calendar-sync',
+  },
+  {
+    key: 'outlook',
+    title: 'Outlook / Microsoft 365',
+    meta: 'Import events in · export Kairos tasks out',
+    icon: 'mail-outline' as const,
+    href: '/calendar-sync',
+  },
+  {
+    key: 'device',
+    title: 'Apple / Samsung',
+    meta: 'Import & export with calendars on this phone',
+    icon: 'phone-portrait-outline' as const,
+    href: '/calendar-sync',
+  },
+  {
+    key: 'ics-import',
+    title: 'Import .ics file',
+    meta: 'One-time upload from Outlook, Google, or Apple export',
+    icon: 'download-outline' as const,
+    href: '/import-calendar',
+  },
+] as const;
+
 export default function CalendarScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { tasks, selectedDate, setSelectedDate, tasksForSelectedDate } = useApp();
   const [mode, setMode] = useState<'week' | 'month'>('week');
+  const [exportNote, setExportNote] = useState<string | null>(null);
   const selected = parseDateKey(selectedDate);
   const selectedIsToday = isToday(selectedDate);
   const [monthCursor, setMonthCursor] = useState(
@@ -165,7 +200,62 @@ export default function CalendarScreen() {
       borderColor: c.lineStrong,
     },
     todayText: { fontFamily: fonts.semibold, color: c.ink },
+    sectionLabel: {
+      fontFamily: fonts.semibold,
+      fontSize: 14,
+      color: c.ink,
+      marginTop: 4,
+    },
+    sectionHint: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: c.inkMuted,
+      lineHeight: 18,
+      marginTop: -6,
+    },
+    portRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 12,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: c.line,
+      backgroundColor: c.bgElevated,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    portIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: c.calendarSoft,
+      alignItems: 'center' as const,
+      justifyContent: 'center' as const,
+    },
+    portCopy: { flex: 1, gap: 2 },
+    portTitle: { fontFamily: fonts.semibold, color: c.ink },
+    portMeta: { fontFamily: fonts.body, fontSize: 12, color: c.inkMuted, lineHeight: 16 },
+    exportNote: { fontFamily: fonts.medium, fontSize: 12, color: c.health },
   }));
+
+  const exportSchedule = () => {
+    if (!tasks.length) {
+      const empty = 'Add some tasks first, then export them as a .ics file.';
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(empty);
+      } else {
+        Alert.alert('Nothing to export', empty);
+      }
+      return;
+    }
+    const ics = tasksToIcs(tasks);
+    const result = shareIcsFile(`kairos-schedule-${selectedDate}.ics`, ics);
+    const note =
+      result === 'downloaded'
+        ? `Downloaded ${tasks.length} tasks as .ics — open in Google, Outlook, or Apple Calendar.`
+        : `Copied ${tasks.length} tasks as .ics text — paste into a .ics file or calendar import.`;
+    setExportNote(note);
+  };
 
   return (
     <ScrollView
@@ -175,6 +265,47 @@ export default function CalendarScreen() {
       <Text style={styles.brand}>Kairos AI</Text>
       <Text style={styles.title}>Calendar</Text>
       <Text style={styles.subtitle}>Plan by week or month — tap a day to focus it.</Text>
+
+      <Text style={styles.sectionLabel}>Import & export</Text>
+      <Text style={styles.sectionHint}>
+        Bring events in from Google, Outlook, or Apple — or send your Kairos schedule out.
+      </Text>
+      {calendarPorts.map((port) => (
+        <Pressable
+          key={port.key}
+          accessibilityRole="button"
+          accessibilityLabel={`${port.title}. ${port.meta}`}
+          onPress={() => router.push(port.href as any)}
+          style={styles.portRow}
+        >
+          <View style={styles.portIcon}>
+            <Ionicons name={port.icon} size={18} color={colors.calendar} />
+          </View>
+          <View style={styles.portCopy}>
+            <Text style={styles.portTitle}>{port.title}</Text>
+            <Text style={styles.portMeta}>{port.meta}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+        </Pressable>
+      ))}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Export Kairos schedule as ics file"
+        onPress={exportSchedule}
+        style={styles.portRow}
+      >
+        <View style={styles.portIcon}>
+          <Ionicons name="share-outline" size={18} color={colors.calendar} />
+        </View>
+        <View style={styles.portCopy}>
+          <Text style={styles.portTitle}>Export .ics file</Text>
+          <Text style={styles.portMeta}>
+            Download your Kairos tasks for Outlook, Google, or Apple
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </Pressable>
+      {exportNote ? <Text style={styles.exportNote}>{exportNote}</Text> : null}
 
       <View style={styles.modeRow}>
         {(['week', 'month'] as const).map((value) => (

@@ -68,18 +68,18 @@ export const PROVIDER_META: Record<
 > = {
   google: {
     label: 'Google Calendar',
-    blurb: 'Two-way sync with Google Calendar via OAuth.',
+    blurb: 'Import from Google and export Kairos tasks back.',
     icon: 'logo-google',
   },
   microsoft: {
     label: 'Outlook / Microsoft 365',
-    blurb: 'Two-way sync with Outlook calendars via Microsoft Graph.',
+    blurb: 'Import from Outlook and export Kairos tasks back.',
     icon: 'mail-outline',
   },
   device: {
     label: 'Apple / Samsung / Device',
     blurb:
-      'Sync with calendars on this phone — Apple Calendar, Samsung Calendar, and accounts already on the device.',
+      'Import & export with calendars on this phone — Apple Calendar, Samsung Calendar, and accounts already on the device.',
     icon: 'phone-portrait-outline',
   },
 };

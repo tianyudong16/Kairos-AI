@@ -210,10 +210,11 @@ export default function ImportCalendarScreen() {
         </View>
 
         <Text style={styles.brand}>Kairos AI</Text>
-        <Text style={styles.title}>Import calendar</Text>
+        <Text style={styles.title}>Import .ics</Text>
         <Text style={styles.subtitle}>
-          Bring Outlook (or Google/Apple) events into Kairos by exporting a `.ics`
-          calendar file, then importing it here.
+          Bring Outlook, Google, or Apple events into Kairos by exporting a `.ics`
+          calendar file, then importing it here. For live Import / Export with those
+          apps, use Calendar → Google, Outlook, or Apple / Samsung.
         </Text>
 
         <View style={styles.card}>
