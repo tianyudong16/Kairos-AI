@@ -362,7 +362,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     {
       id: 'c1',
       role: 'ai',
-      text: 'I can reshape your day with concrete actions — protect peak hours, move overflow, insert breaks, split long blocks, or tune sleep. Tap an action card below.',
+      text: 'I can reshape your day with concrete actions — protect peak hours, move overflow, insert breaks, split long blocks, or tune sleep. Tap an action card above.',
     },
   ]);
   const [lastCoachChanges, setLastCoachChanges] = useState<CoachChange[]>([]);
