@@ -1,22 +1,43 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { usePathname, useRouter } from 'expo-router';
 import { Pressable, ViewStyle } from 'react-native';
 
 import { useTheme, useThemedStyles } from '@/constants/theme';
 
 type Props = {
-  /** Fallback when there is no navigation history */
+  /** Parent screen to return to (used instead of raw history when unsafe) */
   fallbackHref?: string;
   accessibilityLabel?: string;
   style?: ViewStyle;
 };
 
+const UNSAFE_BACK_PATHS = [
+  '/login',
+  '/onboarding',
+  'login',
+  'onboarding',
+  'accounts.google',
+  'oauth',
+];
+
+function isUnsafePath(path: string | null | undefined) {
+  if (!path) return true;
+  const lower = path.toLowerCase();
+  return UNSAFE_BACK_PATHS.some((part) => lower.includes(part));
+}
+
+/**
+ * Back control that never pops into login/OAuth history.
+ * After Google Connect, browser history often includes auth pages — router.back()
+ * would drop users on login. We always return to the explicit parent route.
+ */
 export function ScreenBackButton({
   fallbackHref = '/(tabs)',
   accessibilityLabel = 'Back',
   style,
 }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
   const { colors } = useTheme();
   const styles = useThemedStyles((c) => ({
     btn: {
@@ -37,8 +58,10 @@ export function ScreenBackButton({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       onPress={() => {
-        if (router.canGoBack()) {
-          router.back();
+        // Always go to the parent screen. Do not use router.back() — after
+        // calendar OAuth redirects, history can point at login / Google auth.
+        if (isUnsafePath(pathname) || pathname === fallbackHref) {
+          router.replace(fallbackHref as any);
           return;
         }
         router.replace(fallbackHref as any);
