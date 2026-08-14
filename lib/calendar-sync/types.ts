@@ -90,6 +90,7 @@ export function getCalendarEnv() {
     string | undefined
   >;
   return {
+    googleOAuthStartUrl: env.EXPO_PUBLIC_GOOGLE_OAUTH_START_URL || '',
     googleWebClientId: env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '',
     googleIosClientId: env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || '',
     googleAndroidClientId: env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || '',

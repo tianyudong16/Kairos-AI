@@ -56,3 +56,9 @@ export function findAccount(email: string, accounts: StoredAccount[]) {
   const key = email.trim().toLowerCase();
   return accounts.find((account) => account.email === key) ?? null;
 }
+
+/** Used to bridge local Kairos login → Firebase Auth for calendar Connect. */
+export function findAccountPassword(email: string): string | null {
+  const account = findAccount(email, loadAccounts());
+  return account?.password ?? null;
+}

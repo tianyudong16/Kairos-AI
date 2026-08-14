@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -14,27 +14,30 @@ import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
+import { findAccountPassword } from '@/lib/auth';
 import {
   CalendarProviderId,
   connectDeviceCalendar,
   connectGoogle,
   connectMicrosoft,
-  getCalendarEnv,
   isDeviceCalendarSupported,
-  isGoogleConfigured,
   isMicrosoftConfigured,
   listDeviceCalendars,
   listGoogleCalendars,
   listMicrosoftCalendars,
   PROVIDER_META,
   providerConfigured,
+  refreshGoogleConnectionFromBackend,
   RemoteCalendar,
 } from '@/lib/calendar-sync';
+import { ensureFirebaseUser, isFirebaseConfigured } from '@/lib/firebase';
 
 export default function CalendarSyncScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ google?: string }>();
   const { colors } = useTheme();
   const {
+    user,
     calendarConnections,
     setCalendarConnection,
     pullCalendar,
@@ -45,9 +48,7 @@ export default function CalendarSyncScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deviceCalendars, setDeviceCalendars] = useState<RemoteCalendar[]>([]);
-  const [showSetup, setShowSetup] = useState(false);
-
-  const env = useMemo(() => getCalendarEnv(), []);
+  const [firebaseUid, setFirebaseUid] = useState<string | null>(null);
 
   const styles = useThemedStyles((c) => ({
     content: { gap: 14, paddingBottom: 32 },
@@ -114,24 +115,53 @@ export default function CalendarSyncScreen() {
     note: { fontFamily: fonts.body, fontSize: 12, color: c.inkMuted, lineHeight: 17 },
     error: { fontFamily: fonts.medium, fontSize: 13, color: c.alert },
     success: { fontFamily: fonts.medium, fontSize: 13, color: c.health },
-    setupBox: {
-      borderRadius: radii.md,
-      borderWidth: 1,
-      borderColor: c.line,
-      backgroundColor: c.bg,
-      padding: 12,
-      gap: 6,
-    },
-    setupTitle: { fontFamily: fonts.semibold, fontSize: 13, color: c.ink },
-    code: {
-      fontFamily: fonts.medium,
-      fontSize: 11,
-      color: c.work,
-      backgroundColor: c.workSoft,
-      padding: 8,
-      borderRadius: 8,
-    },
   }));
+
+  const resolveFirebaseUid = async () => {
+    if (firebaseUid) return firebaseUid;
+    if (!user || user.isGuest) return null;
+    const password = findAccountPassword(user.email);
+    if (!password || !isFirebaseConfigured()) return null;
+    const fbUser = await ensureFirebaseUser(user.email, password);
+    setFirebaseUid(fbUser.uid);
+    return fbUser.uid;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (params.google !== 'connected') return;
+      setMessage('Google connected. Finishing setup…');
+      try {
+        const uid = await resolveFirebaseUid();
+        if (cancelled) return;
+        if (uid) {
+          const fromBackend = await refreshGoogleConnectionFromBackend(uid);
+          if (fromBackend?.connected) {
+            setCalendarConnection('google', fromBackend);
+            setMessage(`Connected Google as ${fromBackend.accountLabel}.`);
+            return;
+          }
+        }
+        setCalendarConnection('google', {
+          provider: 'google',
+          connected: true,
+          accountLabel: 'Google Calendar',
+          calendarId: 'primary',
+          calendarTitle: 'Primary',
+        });
+        setMessage('Connected Google Calendar.');
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Could not finish Google connect.');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.google]);
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
@@ -149,24 +179,47 @@ export default function CalendarSyncScreen() {
   const connect = async (provider: CalendarProviderId) => {
     await run(`connect-${provider}`, async () => {
       if (provider === 'google') {
-        const connection = await connectGoogle();
-        setCalendarConnection('google', connection);
-        try {
-          const calendars = await listGoogleCalendars(connection.accessToken!);
-          if (calendars[0]) {
-            setCalendarConnection('google', {
-              ...connection,
-              calendarId: calendars[0].id,
-              calendarTitle: calendars[0].title,
-            });
-          }
-        } catch {
-          // keep primary
+        if (!user || user.isGuest) {
+          throw new Error('Sign in to Kairos (not as guest) to connect Google.');
         }
-        setMessage(`Connected Google as ${connection.accountLabel}.`);
+        const password = findAccountPassword(user.email);
+        const connection = await connectGoogle({
+          email: user.email,
+          password: password || undefined,
+          firebaseUid: firebaseUid || undefined,
+        });
+        if (!connection.connected && Platform.OS === 'web') {
+          setMessage('Continue in the browser to finish Google sign-in…');
+          return;
+        }
+        setCalendarConnection('google', connection);
+        if (connection.accessToken) {
+          try {
+            const calendars = await listGoogleCalendars(connection.accessToken);
+            if (calendars[0]) {
+              setCalendarConnection('google', {
+                ...connection,
+                calendarId: calendars[0].id,
+                calendarTitle: calendars[0].title,
+              });
+            }
+          } catch {
+            // keep primary
+          }
+        }
+        setMessage(
+          connection.accountLabel
+            ? `Connected Google as ${connection.accountLabel}.`
+            : 'Connected Google Calendar.'
+        );
         return;
       }
       if (provider === 'microsoft') {
+        if (!isMicrosoftConfigured()) {
+          throw new Error(
+            'Outlook seamless Connect is next. Use Import .ics for Outlook for now.'
+          );
+        }
         const connection = await connectMicrosoft();
         setCalendarConnection('microsoft', connection);
         try {
@@ -200,6 +253,7 @@ export default function CalendarSyncScreen() {
   };
 
   const providers: CalendarProviderId[] = ['google', 'microsoft', 'device'];
+  const microsoftNeedsKeys = useMemo(() => !isMicrosoftConfigured(), []);
 
   return (
     <AppShell>
@@ -225,58 +279,6 @@ export default function CalendarSyncScreen() {
           Connect Google, Outlook, or this phone’s calendars (Apple / Samsung). Import
           events into Kairos and export Kairos tasks back out.
         </Text>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Show calendar sync setup instructions"
-          onPress={() => setShowSetup((v) => !v)}
-          style={styles.card}
-        >
-          <Text style={styles.cardTitle}>
-            {showSetup ? 'Hide setup guide' : 'Show setup guide (API keys)'}
-          </Text>
-          {showSetup ? (
-            <View style={styles.setupBox}>
-              <Text style={styles.setupTitle}>1) Google Calendar</Text>
-              <Text style={styles.note}>
-                Google Cloud Console → APIs & Services → enable Calendar API → create
-                OAuth client IDs (Web, iOS, Android). Add authorized redirect URI from
-                Expo AuthSession (scheme `kairosai`).
-              </Text>
-              <Text style={styles.code}>
-                EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=...{'\n'}
-                EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=...{'\n'}
-                EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=...
-              </Text>
-              <Text style={styles.setupTitle}>2) Outlook / Microsoft 365</Text>
-              <Text style={styles.note}>
-                Azure Portal → App registrations → New app → add Redirect URI (SPA /
-                mobile) for `kairosai://oauth` → API permissions: Calendars.ReadWrite,
-                User.Read, offline_access.
-              </Text>
-              <Text style={styles.code}>
-                EXPO_PUBLIC_MICROSOFT_CLIENT_ID=...{'\n'}
-                EXPO_PUBLIC_MICROSOFT_TENANT_ID=common
-              </Text>
-              <Text style={styles.setupTitle}>3) Apple / Samsung</Text>
-              <Text style={styles.note}>
-                Uses on-device calendars via Expo Calendar. Build the iOS/Android app
-                (not web-only). Apple Calendar appears on iOS; Samsung Calendar appears
-                on Samsung Android devices. Grant calendar permission when prompted.
-              </Text>
-              <Text style={styles.note}>
-                Status — Google configured: {isGoogleConfigured() ? 'yes' : 'no'} ·
-                Microsoft configured: {isMicrosoftConfigured() ? 'yes' : 'no'} · Device
-                supported here: {isDeviceCalendarSupported() ? 'yes' : 'no (web)'}
-              </Text>
-              {!env.googleWebClientId && !env.microsoftClientId ? (
-                <Text style={styles.note}>
-                  Tip: copy `.env.example` to `.env` and restart Expo after adding keys.
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-        </Pressable>
 
         {providers.map((provider) => {
           const meta = PROVIDER_META[provider];
@@ -311,16 +313,17 @@ export default function CalendarSyncScreen() {
                 </Text>
               ) : null}
 
-              {!configured && provider !== 'device' ? (
-                <Text style={styles.error}>
-                  Missing client ID — open the setup guide above.
+              {provider === 'microsoft' && microsoftNeedsKeys ? (
+                <Text style={styles.note}>
+                  Outlook Connect is coming soon via Kairos backend (same seamless flow
+                  as Google).
                 </Text>
               ) : null}
 
               {provider === 'device' && !isDeviceCalendarSupported() ? (
                 <Text style={styles.note}>
                   Device calendars require the iOS/Android app. On web, use Google or
-                  Outlook OAuth, or Settings → Import .ics.
+                  Outlook, or Settings → Import .ics.
                 </Text>
               ) : null}
 
@@ -452,8 +455,8 @@ export default function CalendarSyncScreen() {
         </Pressable>
         {Platform.OS === 'web' ? (
           <Text style={styles.note}>
-            Running on web: Google/Outlook OAuth work here once client IDs are set. Apple
-            & Samsung need a native build.
+            On web, Google Connect opens a secure Kairos sign-in — no API keys in the app.
+            Apple & Samsung need a native build.
           </Text>
         ) : null}
       </ScrollView>

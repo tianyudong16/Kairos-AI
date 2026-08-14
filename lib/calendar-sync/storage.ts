@@ -47,13 +47,12 @@ export function saveConnections(
 }
 
 export function providerConfigured(provider: CalendarProviderId) {
-  const env = getCalendarEnv();
   if (provider === 'google') {
-    return Boolean(
-      env.googleWebClientId || env.googleIosClientId || env.googleAndroidClientId
-    );
+    // Google client secrets live in Firebase Functions — no app API keys required.
+    return true;
   }
   if (provider === 'microsoft') {
+    const env = getCalendarEnv();
     return Boolean(env.microsoftClientId);
   }
   return true; // device calendars need OS permissions, not cloud client IDs

@@ -6,6 +6,7 @@ export {
   listGoogleCalendars,
   pullGoogleEvents,
   pushGoogleEvents,
+  refreshGoogleConnectionFromBackend,
 } from '@/lib/calendar-sync/google';
 export {
   connectMicrosoft,

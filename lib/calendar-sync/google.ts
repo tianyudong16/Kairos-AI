@@ -1,6 +1,8 @@
-import * as AuthSession from 'expo-auth-session';
+import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 
+import { ensureFirebaseUser, isFirebaseConfigured, readGoogleConnectionDoc } from '@/lib/firebase';
 import { fromJsDate, parseGoogleDateTime, toIsoLocal } from '@/lib/calendar-sync/time';
 import {
   CalendarConnection,
@@ -14,95 +16,108 @@ import {
 
 WebBrowser.maybeCompleteAuthSession();
 
-const discovery: AuthSession.DiscoveryDocument = {
-  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-  tokenEndpoint: 'https://oauth2.googleapis.com/token',
-  revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-};
+const DEFAULT_OAUTH_START =
+  'https://us-central1-kairos-ai-13e53.cloudfunctions.net/googleOAuthStart';
 
-function clientIdForPlatform() {
+function oauthStartUrl() {
   const env = getCalendarEnv();
-  // Prefer web client for Expo web; fall back to any configured ID for prototype.
-  return (
-    env.googleWebClientId ||
-    env.googleIosClientId ||
-    env.googleAndroidClientId ||
-    ''
-  );
+  return (env.googleOAuthStartUrl || DEFAULT_OAUTH_START).replace(/\/$/, '');
 }
 
+/** Backend holds Google client secrets — end users never paste API keys. */
 export function isGoogleConfigured() {
-  return Boolean(clientIdForPlatform());
+  return true;
 }
 
-export async function connectGoogle(): Promise<CalendarConnection> {
-  const clientId = clientIdForPlatform();
-  if (!clientId) {
-    throw new Error(
-      'Add EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (and iOS/Android IDs for native) to your env.'
-    );
+function connectionFromFirestoreDoc(
+  data: Record<string, unknown> | null
+): CalendarConnection | null {
+  if (!data) return null;
+  const connected = Boolean(data.connected ?? data.accessToken ?? data.refreshToken);
+  if (!connected) return null;
+  return {
+    provider: 'google',
+    connected: true,
+    accountLabel:
+      (typeof data.email === 'string' && data.email) ||
+      (typeof data.accountLabel === 'string' && data.accountLabel) ||
+      'Google Calendar',
+    accessToken: typeof data.accessToken === 'string' ? data.accessToken : undefined,
+    refreshToken: typeof data.refreshToken === 'string' ? data.refreshToken : undefined,
+    expiresAt: typeof data.expiresAt === 'number' ? data.expiresAt : undefined,
+    calendarId:
+      (typeof data.calendarId === 'string' && data.calendarId) || 'primary',
+    calendarTitle:
+      (typeof data.calendarTitle === 'string' && data.calendarTitle) || 'Primary',
+  };
+}
+
+export async function refreshGoogleConnectionFromBackend(
+  uid: string
+): Promise<CalendarConnection | null> {
+  if (!uid || !isFirebaseConfigured()) return null;
+  try {
+    const data = await readGoogleConnectionDoc(uid);
+    return connectionFromFirestoreDoc(data);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Seamless Connect: open Kairos Cloud Function OAuth (no client API keys in the app).
+ * Requires Firebase Auth uid (bridged from the signed-in Kairos account).
+ */
+export async function connectGoogle(input: {
+  email?: string;
+  password?: string;
+  firebaseUid?: string;
+}): Promise<CalendarConnection> {
+  let uid = input.firebaseUid?.trim() || '';
+
+  if (!uid) {
+    if (!input.email || !input.password) {
+      throw new Error('Sign in to Kairos (not as guest) before connecting Google.');
+    }
+    if (!isFirebaseConfigured()) {
+      throw new Error(
+        'Add Firebase web config to `.env` (EXPO_PUBLIC_FIREBASE_API_KEY, AUTH_DOMAIN, APP_ID) so Connect can use your account. Google API keys are not needed.'
+      );
+    }
+    const user = await ensureFirebaseUser(input.email, input.password);
+    uid = user.uid;
   }
 
-  const redirectUri = AuthSession.makeRedirectUri({
-    scheme: 'kairosai',
-    path: 'oauth',
-  });
+  const start = `${oauthStartUrl()}?uid=${encodeURIComponent(uid)}`;
+  const returnUrl = Linking.createURL('calendar-sync');
 
-  const request = new AuthSession.AuthRequest({
-    clientId,
-    redirectUri,
-    scopes: [
-      'openid',
-      'profile',
-      'email',
-      'https://www.googleapis.com/auth/calendar.events',
-      'https://www.googleapis.com/auth/calendar.readonly',
-    ],
-    responseType: AuthSession.ResponseType.Code,
-    usePKCE: true,
-    extraParams: {
-      access_type: 'offline',
-      prompt: 'consent',
-    },
-  });
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    window.location.assign(start);
+    // Navigation away — caller should treat as in-progress.
+    return {
+      provider: 'google',
+      connected: false,
+    };
+  }
 
-  await request.makeAuthUrlAsync(discovery);
-  const result = await request.promptAsync(discovery);
-  if (result.type !== 'success' || !result.params.code) {
+  const result = await WebBrowser.openAuthSessionAsync(start, returnUrl);
+  if (result.type !== 'success' && result.type !== 'dismiss') {
     throw new Error('Google sign-in was cancelled.');
   }
 
-  const token = await AuthSession.exchangeCodeAsync(
-    {
-      clientId,
-      code: result.params.code,
-      redirectUri,
-      extraParams: request.codeVerifier
-        ? { code_verifier: request.codeVerifier }
-        : undefined,
-    },
-    discovery
-  );
-
-  let accountLabel = 'Google Calendar';
-  try {
-    const me = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: { Authorization: `Bearer ${token.accessToken}` },
-    }).then((r) => r.json());
-    if (me?.email) accountLabel = me.email;
-  } catch {
-    // ignore
+  // Prefer Firestore tokens written by googleOAuthCallback.
+  if (isFirebaseConfigured()) {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const fromBackend = await refreshGoogleConnectionFromBackend(uid);
+      if (fromBackend?.connected) return fromBackend;
+      await new Promise((r) => setTimeout(r, 500));
+    }
   }
 
   return {
     provider: 'google',
     connected: true,
-    accountLabel,
-    accessToken: token.accessToken,
-    refreshToken: token.refreshToken ?? undefined,
-    expiresAt: token.expiresIn
-      ? Date.now() + token.expiresIn * 1000
-      : undefined,
+    accountLabel: 'Google Calendar',
     calendarId: 'primary',
     calendarTitle: 'Primary',
   };
@@ -140,7 +155,11 @@ export async function pullGoogleEvents(
   rangeStart: Date,
   rangeEnd: Date
 ): Promise<PullResult> {
-  if (!connection.accessToken) throw new Error('Google is not connected.');
+  if (!connection.accessToken) {
+    throw new Error(
+      'Google is connected on the server, but Import needs a token refresh. Disconnect and Connect Google again, or try shortly.'
+    );
+  }
   const calendarId = encodeURIComponent(connection.calendarId || 'primary');
   const params = new URLSearchParams({
     singleEvents: 'true',
@@ -174,7 +193,11 @@ export async function pushGoogleEvents(
   connection: CalendarConnection,
   tasks: SyncTaskPatch[]
 ): Promise<PushResult> {
-  if (!connection.accessToken) throw new Error('Google is not connected.');
+  if (!connection.accessToken) {
+    throw new Error(
+      'Google is connected on the server, but Export needs a token refresh. Disconnect and Connect Google again, or try shortly.'
+    );
+  }
   const calendarId = encodeURIComponent(connection.calendarId || 'primary');
   let created = 0;
   let updated = 0;
