@@ -12,6 +12,7 @@ import {
 
 import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenBackButton } from '@/components/nav/ScreenBackButton';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import {
@@ -198,14 +199,7 @@ export default function ImportCalendarScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.topBar}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={() => router.back()}
-            style={styles.backBtn}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.ink} />
-          </Pressable>
+          <ScreenBackButton fallbackHref="/(tabs)/calendar" style={{ marginBottom: 0 }} />
           <View style={{ width: 40 }} />
         </View>
 

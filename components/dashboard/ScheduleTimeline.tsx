@@ -1,11 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { PriorityTag } from '@/components/ui/PriorityTag';
 import type { Priority, Task } from '@/context/AppContext';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
+import {
+  addMinutesToTime,
+  formatDuration,
+  normalizeTimeInput,
+  timeToMinutes,
+} from '@/lib/schedule';
 
 const iconMap = {
   run: 'walk-outline',
@@ -18,19 +25,42 @@ const iconMap = {
 
 type Props = {
   tasks: Task[];
+  onMoveEarlier?: (id: string) => void;
+  onMoveLater?: (id: string) => void;
+  onMoveTomorrow?: (id: string) => void;
   onDelete?: (id: string) => void;
   onPriority?: (id: string, priority: Priority) => void;
+  onUpdateTiming?: (
+    id: string,
+    patch: { start?: string; durationMinutes?: number }
+  ) => void;
 };
 
 export function ScheduleTimeline({
   tasks,
+  onMoveEarlier,
+  onMoveLater,
+  onMoveTomorrow,
   onDelete,
   onPriority,
+  onUpdateTiming,
 }: Props) {
   const { getCategory } = useApp();
   const { colors } = useTheme();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [startDraft, setStartDraft] = useState('');
+  const [durationDraft, setDurationDraft] = useState('');
+  const [timeError, setTimeError] = useState<string | null>(null);
+
   const styles = useThemedStyles((c) => ({
     wrap: { gap: 12 },
+    legend: {
+      fontFamily: fonts.body,
+      fontSize: 12,
+      color: c.inkMuted,
+      lineHeight: 16,
+      marginBottom: 2,
+    },
     empty: {
       borderRadius: radii.md,
       borderWidth: 1,
@@ -89,29 +119,124 @@ export function ScheduleTimeline({
       fontSize: 12,
       color: c.inkSoft,
     },
-    actions: { flexDirection: 'row' as const, gap: 8, marginTop: 2 },
-    actionBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
+    actions: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: 8,
+      marginTop: 2,
+    },
+    actionChip: {
+      flexDirection: 'row' as const,
       alignItems: 'center' as const,
-      justifyContent: 'center' as const,
-      backgroundColor: c.bgElevated,
+      gap: 4,
+      borderRadius: radii.pill,
       borderWidth: 1,
       borderColor: c.line,
+      backgroundColor: c.bgElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
     },
+    actionDisabled: { opacity: 0.4 },
+    actionLabel: { fontFamily: fonts.semibold, fontSize: 12, color: c.ink },
+    actionLabelDisabled: { color: c.inkMuted },
+    deleteChip: { borderColor: c.alertSoft, backgroundColor: c.alertSoft },
+    editBox: {
+      marginTop: 4,
+      gap: 8,
+      borderTopWidth: 1,
+      borderTopColor: c.line,
+      paddingTop: 10,
+    },
+    editRow: { flexDirection: 'row' as const, gap: 8, alignItems: 'center' as const },
+    editField: { flex: 1, gap: 4 },
+    editLabel: { fontFamily: fonts.medium, fontSize: 11, color: c.inkMuted },
+    editInput: {
+      borderRadius: radii.md,
+      borderWidth: 1.5,
+      borderColor: c.lineStrong,
+      backgroundColor: c.bgElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      fontFamily: fonts.body,
+      fontSize: 14,
+      color: c.ink,
+    },
+    nudgeBtn: {
+      borderRadius: radii.pill,
+      borderWidth: 1,
+      borderColor: c.lineStrong,
+      backgroundColor: c.bgElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+    },
+    nudgeText: { fontFamily: fonts.semibold, fontSize: 12, color: c.ink },
+    error: { fontFamily: fonts.medium, fontSize: 12, color: c.alert },
+    saveBtn: {
+      borderRadius: radii.pill,
+      backgroundColor: c.today,
+      paddingHorizontal: 14,
+      paddingVertical: 8,
+      alignSelf: 'flex-start' as const,
+    },
+    saveText: { fontFamily: fonts.bold, fontSize: 12, color: c.white },
   }));
+
+  const openEditor = (task: Task) => {
+    setEditingId(task.id);
+    setStartDraft(task.start);
+    setDurationDraft(String(task.durationMinutes));
+    setTimeError(null);
+  };
+
+  const saveTiming = (task: Task) => {
+    if (!onUpdateTiming) return;
+    const start = normalizeTimeInput(startDraft);
+    const durationMinutes = parseInt(durationDraft, 10);
+    if (!start) {
+      setTimeError('Use a time like 9:30 or 2:15pm');
+      return;
+    }
+    if (!durationMinutes || durationMinutes < 5 || durationMinutes > 12 * 60) {
+      setTimeError('Duration must be 5–720 minutes');
+      return;
+    }
+    onUpdateTiming(task.id, { start, durationMinutes });
+    setEditingId(null);
+    setTimeError(null);
+  };
+
+  const nudgeStart = (task: Task, delta: number) => {
+    if (!onUpdateTiming) return;
+    const next = addMinutesToTime(task.start, delta);
+    onUpdateTiming(task.id, { start: next });
+    if (editingId === task.id) setStartDraft(next);
+  };
+
+  const sorted = useMemo(
+    () =>
+      [...tasks].sort(
+        (a, b) => a.order - b.order || timeToMinutes(a.start) - timeToMinutes(b.start)
+      ),
+    [tasks]
+  );
 
   return (
     <View style={styles.wrap}>
-      {tasks.length === 0 ? (
+      {sorted.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>No tasks yet</Text>
           <Text style={styles.emptyBody}>Tap + to add tasks with AI or manually.</Text>
         </View>
-      ) : null}
-      {tasks.map((task, index) => {
+      ) : (
+        <Text style={styles.legend}>
+          Edit time, nudge ±15m, or use Earlier / Later to reshuffle the day.
+        </Text>
+      )}
+      {sorted.map((task, index) => {
         const meta = getCategory(task.category);
+        const isFirst = index === 0;
+        const isLast = index === sorted.length - 1;
+        const isEditing = editingId === task.id;
         return (
           <Animated.View
             key={task.id}
@@ -142,7 +267,7 @@ export function ScheduleTimeline({
                   </View>
                 </View>
                 <Text style={styles.meta}>
-                  {task.start} – {task.end}
+                  {task.start} – {task.end} · {formatDuration(task.durationMinutes)}
                 </Text>
                 {onPriority ? (
                   <PriorityTag
@@ -152,14 +277,146 @@ export function ScheduleTimeline({
                 ) : (
                   <PriorityTag priority={task.priority} />
                 )}
-                {onDelete ? (
-                  <View style={styles.actions}>
+
+                <View style={styles.actions}>
+                  {onUpdateTiming ? (
+                    <>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Nudge start 15 minutes earlier"
+                        onPress={() => nudgeStart(task, -15)}
+                        style={styles.actionChip}
+                      >
+                        <Text style={styles.actionLabel}>−15m</Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Nudge start 15 minutes later"
+                        onPress={() => nudgeStart(task, 15)}
+                        style={styles.actionChip}
+                      >
+                        <Text style={styles.actionLabel}>+15m</Text>
+                      </Pressable>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                          isEditing ? 'Close time editor' : 'Edit task time'
+                        }
+                        onPress={() =>
+                          isEditing ? setEditingId(null) : openEditor(task)
+                        }
+                        style={styles.actionChip}
+                      >
+                        <Ionicons name="time-outline" size={14} color={colors.ink} />
+                        <Text style={styles.actionLabel}>
+                          {isEditing ? 'Close' : 'Edit time'}
+                        </Text>
+                      </Pressable>
+                    </>
+                  ) : null}
+                  {onMoveEarlier ? (
                     <Pressable
-                      accessibilityLabel="Delete"
-                      onPress={() => onDelete(task.id)}
-                      style={styles.actionBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel="Move earlier in the day"
+                      disabled={isFirst}
+                      onPress={() => onMoveEarlier(task.id)}
+                      style={[styles.actionChip, isFirst && styles.actionDisabled]}
                     >
-                      <Ionicons name="trash-outline" size={16} color={colors.alert} />
+                      <Ionicons
+                        name="arrow-up"
+                        size={14}
+                        color={isFirst ? colors.inkMuted : colors.ink}
+                      />
+                      <Text
+                        style={[
+                          styles.actionLabel,
+                          isFirst && styles.actionLabelDisabled,
+                        ]}
+                      >
+                        Earlier
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  {onMoveLater ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Move later in the day"
+                      disabled={isLast}
+                      onPress={() => onMoveLater(task.id)}
+                      style={[styles.actionChip, isLast && styles.actionDisabled]}
+                    >
+                      <Ionicons
+                        name="arrow-down"
+                        size={14}
+                        color={isLast ? colors.inkMuted : colors.ink}
+                      />
+                      <Text
+                        style={[
+                          styles.actionLabel,
+                          isLast && styles.actionLabelDisabled,
+                        ]}
+                      >
+                        Later
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                  {onMoveTomorrow ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Move task to tomorrow"
+                      onPress={() => onMoveTomorrow(task.id)}
+                      style={styles.actionChip}
+                    >
+                      <Ionicons name="calendar-outline" size={14} color={colors.ink} />
+                      <Text style={styles.actionLabel}>Tomorrow</Text>
+                    </Pressable>
+                  ) : null}
+                  {onDelete ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Delete task"
+                      onPress={() => onDelete(task.id)}
+                      style={[styles.actionChip, styles.deleteChip]}
+                    >
+                      <Ionicons name="trash-outline" size={14} color={colors.alert} />
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                {isEditing && onUpdateTiming ? (
+                  <View style={styles.editBox}>
+                    <View style={styles.editRow}>
+                      <View style={styles.editField}>
+                        <Text style={styles.editLabel}>Start</Text>
+                        <TextInput
+                          value={startDraft}
+                          onChangeText={setStartDraft}
+                          placeholder="9:30am"
+                          placeholderTextColor={colors.inkMuted}
+                          style={styles.editInput}
+                          autoCapitalize="none"
+                        />
+                      </View>
+                      <View style={styles.editField}>
+                        <Text style={styles.editLabel}>Duration (min)</Text>
+                        <TextInput
+                          value={durationDraft}
+                          onChangeText={setDurationDraft}
+                          placeholder="60"
+                          placeholderTextColor={colors.inkMuted}
+                          keyboardType="number-pad"
+                          style={styles.editInput}
+                        />
+                      </View>
+                    </View>
+                    {timeError ? <Text style={styles.error}>{timeError}</Text> : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Save task timing"
+                      onPress={() => saveTiming(task)}
+                      style={styles.saveBtn}
+                    >
+                      <Text style={styles.saveText}>Save time</Text>
                     </Pressable>
                   </View>
                 ) : null}

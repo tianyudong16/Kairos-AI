@@ -226,6 +226,8 @@ export default function DashboardScreen() {
     categories,
     deleteTask,
     updateTask,
+    reorderTask,
+    moveTaskDate,
     optimizeSchedule,
     user,
   } = useApp();
@@ -385,6 +387,10 @@ export default function DashboardScreen() {
         tasks={tasksForSelectedDate}
         onDelete={deleteTask}
         onPriority={(id, priority) => updateTask(id, { priority })}
+        onUpdateTiming={(id, patch) => updateTask(id, patch)}
+        onMoveEarlier={(id) => reorderTask(id, 'up')}
+        onMoveLater={(id) => reorderTask(id, 'down')}
+        onMoveTomorrow={(id) => moveTaskDate(id, addDays(selectedDate, 1))}
       />
     </ScrollView>
   );

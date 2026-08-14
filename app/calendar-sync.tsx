@@ -12,6 +12,7 @@ import {
 
 import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenBackButton } from '@/components/nav/ScreenBackButton';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import {
@@ -278,17 +279,7 @@ export default function CalendarSyncScreen() {
         contentContainerStyle={styles.content}
       >
         <View style={styles.topBar}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            onPress={() => {
-              if (router.canGoBack()) router.back();
-              else router.replace('/(tabs)/calendar');
-            }}
-            style={styles.backBtn}
-          >
-            <Ionicons name="chevron-back" size={20} color={colors.ink} />
-          </Pressable>
+          <ScreenBackButton fallbackHref="/(tabs)/calendar" style={{ marginBottom: 0 }} />
           <View style={{ width: 40 }} />
         </View>
 

@@ -4,6 +4,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { CircadianChart } from '@/components/analytics/CircadianChart';
 import { FocusRing } from '@/components/analytics/FocusRing';
+import { ScreenBackButton } from '@/components/nav/ScreenBackButton';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useThemedStyles } from '@/constants/theme';
@@ -126,6 +127,7 @@ export default function AnalyticsScreen() {
       contentContainerStyle={styles.content}
     >
       <Animated.View entering={FadeInDown}>
+        <ScreenBackButton fallbackHref="/(tabs)" />
         <Text style={styles.brand}>Kairos AI</Text>
         <Text style={styles.title}>Analytics</Text>
         <Text style={styles.subtitle}>Insights from today’s rhythm</Text>

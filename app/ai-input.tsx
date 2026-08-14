@@ -372,7 +372,11 @@ export default function AiInputScreen() {
       <View style={styles.topBar}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.back()}
+          accessibilityLabel="Close"
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace('/(tabs)');
+          }}
           style={styles.close}
         >
           <Ionicons name="close" size={22} color={colors.ink} />

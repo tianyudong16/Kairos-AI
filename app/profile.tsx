@@ -7,6 +7,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { AppShell } from '@/components/ui/AppShell';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { FloatingTabBar } from '@/components/nav/FloatingTabBar';
+import { ScreenBackButton } from '@/components/nav/ScreenBackButton';
 import { Lifestyle, useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import { LIFESTYLE_OPTIONS, lifestyleLabel } from '@/lib/auth';
@@ -279,6 +280,7 @@ export default function ProfileScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <Animated.View entering={FadeInDown.duration(400)} style={styles.header}>
+          <ScreenBackButton fallbackHref="/(tabs)" />
           <Text style={styles.brand}>Kairos AI</Text>
           <Text style={styles.title}>Your profile</Text>
           <Text style={styles.subtitle}>

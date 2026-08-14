@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { Alert, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenBackButton } from '@/components/nav/ScreenBackButton';
 import { useApp } from '@/context/AppContext';
 import { shareIcsFile, tasksToIcs } from '@/lib/ics';
 import {
@@ -262,6 +263,7 @@ export default function CalendarScreen() {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={styles.content}
     >
+      <ScreenBackButton fallbackHref="/(tabs)" />
       <Text style={styles.brand}>Kairos AI</Text>
       <Text style={styles.title}>Calendar</Text>
       <Text style={styles.subtitle}>Plan by week or month — tap a day to focus it.</Text>

@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { CategoryEditModal } from '@/components/ui/CategoryEditModal';
 import { PrimaryButton } from '@/components/ui/PrimaryButton';
+import { ScreenBackButton } from '@/components/nav/ScreenBackButton';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import { normalizeTimeInput } from '@/lib/schedule';
@@ -232,6 +233,7 @@ export default function SettingsScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      <ScreenBackButton fallbackHref="/profile" />
       <Text style={styles.brand}>Kairos AI</Text>
       <Text style={styles.title}>Settings</Text>
       <Text style={styles.subtitle}>

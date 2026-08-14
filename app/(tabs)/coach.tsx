@@ -14,6 +14,7 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
+import { ScreenBackButton } from '@/components/nav/ScreenBackButton';
 
 export default function CoachScreen() {
   const router = useRouter();
@@ -216,6 +217,7 @@ export default function CoachScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={styles.header}>
+        <ScreenBackButton fallbackHref="/(tabs)" />
         <Text style={styles.brand}>Kairos AI</Text>
         <View style={styles.titleRow}>
           <Ionicons name="flash" size={18} color={colors.energy} />
