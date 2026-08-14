@@ -4,18 +4,16 @@ import { Pressable, Text, TextInput, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { PriorityTag } from '@/components/ui/PriorityTag';
+import { MiniMonthPicker } from '@/components/ui/MiniMonthPicker';
 import type { Priority, Task } from '@/context/AppContext';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import {
-  addDays,
   addMinutesToTime,
   formatDuration,
   formatShortDate,
-  isToday,
   normalizeTimeInput,
   timeToMinutes,
-  toDateKey,
 } from '@/lib/schedule';
 
 const iconMap = {
@@ -59,11 +57,6 @@ export function ScheduleTimeline({
   const [startDraft, setStartDraft] = useState('');
   const [durationDraft, setDurationDraft] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
-
-  const dateOptions = useMemo(() => {
-    const today = toDateKey(new Date());
-    return Array.from({ length: 21 }, (_, i) => addDays(today, i));
-  }, []);
 
   const styles = useThemedStyles((c) => ({
     wrap: { gap: 12 },
@@ -174,18 +167,6 @@ export function ScheduleTimeline({
       fontSize: 14,
       color: c.ink,
     },
-    dateRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6 },
-    dateChip: {
-      borderRadius: radii.pill,
-      borderWidth: 1,
-      borderColor: c.lineStrong,
-      backgroundColor: c.bgElevated,
-      paddingHorizontal: 10,
-      paddingVertical: 6,
-    },
-    dateChipActive: { backgroundColor: c.today, borderColor: c.today },
-    dateChipText: { fontFamily: fonts.medium, fontSize: 11, color: c.ink },
-    dateChipTextActive: { color: c.white, fontFamily: fonts.semibold },
     error: { fontFamily: fonts.medium, fontSize: 12, color: c.alert },
     saveBtn: {
       borderRadius: radii.pill,
@@ -251,13 +232,6 @@ export function ScheduleTimeline({
       ),
     [tasks]
   );
-
-  const dateChipLabel = (day: string) => {
-    if (isToday(day)) return 'Today';
-    const today = toDateKey(new Date());
-    if (day === addDays(today, 1)) return 'Tomorrow';
-    return formatShortDate(day);
-  };
 
   return (
     <View style={styles.wrap}>
@@ -423,29 +397,11 @@ export function ScheduleTimeline({
                       />
                     </View>
                     <Text style={styles.editLabel}>Date</Text>
-                    <View style={styles.dateRow}>
-                      {dateOptions.map((day) => {
-                        const active = dateDraft === day;
-                        return (
-                          <Pressable
-                            key={day}
-                            accessibilityRole="button"
-                            accessibilityLabel={`Set date ${formatShortDate(day)}`}
-                            onPress={() => setDateDraft(day)}
-                            style={[styles.dateChip, active && styles.dateChipActive]}
-                          >
-                            <Text
-                              style={[
-                                styles.dateChipText,
-                                active && styles.dateChipTextActive,
-                              ]}
-                            >
-                              {dateChipLabel(day)}
-                            </Text>
-                          </Pressable>
-                        );
-                      })}
-                    </View>
+                    <MiniMonthPicker
+                      key={editingId || dateDraft}
+                      value={dateDraft}
+                      onChange={setDateDraft}
+                    />
                     <View style={styles.editRow}>
                       <View style={styles.editField}>
                         <Text style={styles.editLabel}>Start</Text>
