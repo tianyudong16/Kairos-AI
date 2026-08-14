@@ -2,7 +2,9 @@ import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 
+import { fromJsDate } from '@/lib/calendar-sync/time';
 import { RemoteEvent } from '@/lib/calendar-sync/types';
+import { toDateKey } from '@/lib/schedule';
 
 const CLOUD_UID_KEY = 'kairos.cloudUid';
 
@@ -78,6 +80,23 @@ export async function startCloudGoogleConnect() {
   }
 }
 
+type CloudGoogleEvent = {
+  id: string;
+  calendarId: string;
+  title: string;
+  allDay?: boolean;
+  /** Raw Google RFC3339 timestamps — preferred for local conversion */
+  startDateTime?: string;
+  endDateTime?: string;
+  startDate?: string;
+  endDate?: string;
+  /** Legacy/server-computed fields (UTC-skewed on old deploys) */
+  date?: string;
+  start?: string;
+  end?: string;
+  durationMinutes?: number;
+};
+
 export type CloudImportResult = {
   imported: number;
   accountEmail?: string;
@@ -94,6 +113,52 @@ export type CloudGoogleStatus = {
   calendarTitle?: string;
   lastImportedAt?: string | null;
 };
+
+/**
+ * Convert Google timestamps to the device's local wall clock.
+ * This must happen in the browser/app — Cloud Functions run in UTC.
+ */
+export function localizeCloudGoogleEvent(raw: CloudGoogleEvent): RemoteEvent {
+  if (raw.allDay || (raw.startDate && !raw.startDateTime)) {
+    const date = raw.startDate || raw.date || toDateKey(new Date());
+    return {
+      id: raw.id,
+      calendarId: raw.calendarId,
+      title: raw.title,
+      date,
+      start: '9:00',
+      end: '10:00',
+      durationMinutes: 60,
+      allDay: true,
+    };
+  }
+
+  if (raw.startDateTime) {
+    const start = new Date(raw.startDateTime);
+    const end = new Date(
+      raw.endDateTime || new Date(start.getTime() + 60 * 60 * 1000).toISOString()
+    );
+    const base = fromJsDate(start, end, false);
+    return {
+      id: raw.id,
+      calendarId: raw.calendarId,
+      title: raw.title,
+      ...base,
+    };
+  }
+
+  // Fallback for older function responses without startDateTime
+  return {
+    id: raw.id,
+    calendarId: raw.calendarId,
+    title: raw.title,
+    date: raw.date || toDateKey(new Date()),
+    start: raw.start || '9:00',
+    end: raw.end || '10:00',
+    durationMinutes: raw.durationMinutes || 60,
+    allDay: Boolean(raw.allDay),
+  };
+}
 
 /** Check whether Firestore has a Google connection for this device. */
 export async function getGoogleCloudStatus(): Promise<CloudGoogleStatus> {
@@ -121,9 +186,12 @@ export async function importGoogleFromCloud(
     tz
   )}`;
   const res = await fetch(url);
-  let json: CloudImportResult & { error?: string };
+  let json: Omit<CloudImportResult, 'events'> & {
+    error?: string;
+    events?: CloudGoogleEvent[];
+  };
   try {
-    json = (await res.json()) as CloudImportResult & { error?: string };
+    json = (await res.json()) as typeof json;
   } catch {
     throw new Error(
       res.ok
@@ -134,5 +202,16 @@ export async function importGoogleFromCloud(
   if (!res.ok) {
     throw new Error(json.error || 'Could not import from Google Calendar.');
   }
-  return json;
+
+  const events = (json.events || []).map(localizeCloudGoogleEvent);
+  return {
+    imported: events.length,
+    accountEmail: json.accountEmail,
+    calendarId: json.calendarId,
+    calendarTitle: json.calendarTitle,
+    events,
+    message:
+      json.message ||
+      `Imported ${events.length} event${events.length === 1 ? '' : 's'} from Google.`,
+  };
 }

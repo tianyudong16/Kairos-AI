@@ -452,35 +452,65 @@ export const importGoogle = onRequest(
       const events = (eventsJson.items || [])
         .filter((item) => item.id && (item.start?.dateTime || item.start?.date))
         .map((item) => {
+          const allDay = Boolean(item.start?.date && !item.start?.dateTime);
+          // Return raw Google timestamps — the Expo app converts to the
+          // user's local wall clock (Cloud Functions run in UTC).
+          if (allDay) {
+            const date = item.start!.date!;
+            return {
+              id: item.id!,
+              calendarId,
+              title: item.summary || "Untitled event",
+              allDay: true,
+              startDate: date,
+              endDate: item.end?.date || date,
+              date,
+              start: "9:00",
+              end: "10:00",
+              durationMinutes: 60,
+            };
+          }
+
+          const startDateTime = item.start!.dateTime!;
+          const endDateTime =
+            item.end?.dateTime ||
+            new Date(
+              new Date(startDateTime).getTime() + 60 * 60 * 1000
+            ).toISOString();
+          const startMs = new Date(startDateTime).getTime();
+          const endMs = new Date(endDateTime).getTime();
+          const durationMinutes = Math.max(
+            15,
+            Math.round((endMs - startMs) / 60000)
+          );
+
+          // Also include a best-effort wall clock using the caller's tz
+          // (client will recompute locally and win).
           const startWall = wallClockFromGoogle({
-            dateTime: item.start?.dateTime,
-            date: item.start?.date,
+            dateTime: startDateTime,
             timeZone: item.start?.timeZone || item.end?.timeZone,
             fallbackTimeZone,
             allDayDefaultTime: "9:00",
           });
           const endWall = wallClockFromGoogle({
-            dateTime: item.end?.dateTime,
-            date: item.end?.date || item.start?.date,
+            dateTime: endDateTime,
             timeZone: item.end?.timeZone || item.start?.timeZone,
             fallbackTimeZone,
             allDayDefaultTime: "10:00",
           });
-          const durationMinutes = Math.max(
-            15,
-            Math.round(
-              (endWall.instant.getTime() - startWall.instant.getTime()) / 60000
-            )
-          );
+
           return {
             id: item.id!,
             calendarId,
             title: item.summary || "Untitled event",
+            allDay: false,
+            startDateTime,
+            endDateTime,
+            timeZone: item.start?.timeZone || item.end?.timeZone || fallbackTimeZone,
             date: startWall.date,
             start: startWall.time,
-            end: endWall.allDay ? "10:00" : endWall.time,
-            durationMinutes: startWall.allDay ? 60 : durationMinutes,
-            allDay: startWall.allDay,
+            end: endWall.time,
+            durationMinutes,
           };
         });
 
