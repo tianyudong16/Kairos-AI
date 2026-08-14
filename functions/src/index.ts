@@ -49,12 +49,81 @@ function pad2(n: number) {
   return `${n}`.padStart(2, "0");
 }
 
-function toDateKey(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
+/**
+ * Convert a Google event start/end into Kairos wall-clock date + time.
+ * Cloud Functions run in UTC — never use Date#getHours() on the server.
+ */
+function wallClockFromGoogle(opts: {
+  dateTime?: string;
+  date?: string;
+  timeZone?: string;
+  fallbackTimeZone: string;
+  allDayDefaultTime: string;
+}): { date: string; time: string; allDay: boolean; instant: Date } {
+  const { dateTime, date, timeZone, fallbackTimeZone, allDayDefaultTime } = opts;
 
-function toTime(d: Date) {
-  return `${d.getHours()}:${pad2(d.getMinutes())}`;
+  if (date && !dateTime) {
+    const instant = new Date(`${date}T12:00:00Z`);
+    return { date, time: allDayDefaultTime, allDay: true, instant };
+  }
+
+  if (!dateTime) {
+    const instant = new Date();
+    return {
+      date: instant.toISOString().slice(0, 10),
+      time: allDayDefaultTime,
+      allDay: false,
+      instant,
+    };
+  }
+
+  const instant = new Date(dateTime);
+  const zone = timeZone || fallbackTimeZone;
+
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(instant);
+
+    const get = (type: string) =>
+      parts.find((p) => p.type === type)?.value || "00";
+    const y = get("year");
+    const m = get("month");
+    const d = get("day");
+    const hour = parseInt(get("hour"), 10);
+    const minute = get("minute");
+    return {
+      date: `${y}-${m}-${d}`,
+      time: `${hour}:${minute}`,
+      allDay: false,
+      instant,
+    };
+  } catch {
+    // Fallback: use the clock digits embedded in the RFC3339 string
+    const match = dateTime.match(
+      /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/
+    );
+    if (match) {
+      return {
+        date: match[1],
+        time: `${parseInt(match[2], 10)}:${match[3]}`,
+        allDay: false,
+        instant,
+      };
+    }
+    return {
+      date: instant.toISOString().slice(0, 10),
+      time: `${instant.getUTCHours()}:${pad2(instant.getUTCMinutes())}`,
+      allDay: false,
+      instant,
+    };
+  }
 }
 
 async function refreshGoogleAccessToken(refreshToken: string) {
@@ -288,6 +357,9 @@ export const importGoogle = onRequest(
         60,
         Math.max(1, parseInt(String(req.query.days || "14"), 10) || 14)
       );
+      const fallbackTimeZone = String(
+        req.query.tz || "America/Los_Angeles"
+      );
       if (!uid) {
         res.status(400).json({ error: "Missing uid." });
         return;
@@ -364,8 +436,8 @@ export const importGoogle = onRequest(
         items?: Array<{
           id?: string;
           summary?: string;
-          start?: { dateTime?: string; date?: string };
-          end?: { dateTime?: string; date?: string };
+          start?: { dateTime?: string; date?: string; timeZone?: string };
+          end?: { dateTime?: string; date?: string; timeZone?: string };
         }>;
         error?: { message?: string };
       };
@@ -380,26 +452,35 @@ export const importGoogle = onRequest(
       const events = (eventsJson.items || [])
         .filter((item) => item.id && (item.start?.dateTime || item.start?.date))
         .map((item) => {
-          const allDay = Boolean(item.start?.date && !item.start?.dateTime);
-          const start = item.start?.dateTime
-            ? new Date(item.start.dateTime)
-            : new Date(`${item.start!.date}T09:00:00`);
-          const end = item.end?.dateTime
-            ? new Date(item.end.dateTime)
-            : new Date(`${item.end?.date || item.start!.date}T10:00:00`);
+          const startWall = wallClockFromGoogle({
+            dateTime: item.start?.dateTime,
+            date: item.start?.date,
+            timeZone: item.start?.timeZone || item.end?.timeZone,
+            fallbackTimeZone,
+            allDayDefaultTime: "9:00",
+          });
+          const endWall = wallClockFromGoogle({
+            dateTime: item.end?.dateTime,
+            date: item.end?.date || item.start?.date,
+            timeZone: item.end?.timeZone || item.start?.timeZone,
+            fallbackTimeZone,
+            allDayDefaultTime: "10:00",
+          });
           const durationMinutes = Math.max(
             15,
-            Math.round((end.getTime() - start.getTime()) / 60000)
+            Math.round(
+              (endWall.instant.getTime() - startWall.instant.getTime()) / 60000
+            )
           );
           return {
             id: item.id!,
             calendarId,
             title: item.summary || "Untitled event",
-            date: toDateKey(start),
-            start: allDay ? "9:00" : toTime(start),
-            end: allDay ? "10:00" : toTime(end),
-            durationMinutes: allDay ? 60 : durationMinutes,
-            allDay,
+            date: startWall.date,
+            start: startWall.time,
+            end: endWall.allDay ? "10:00" : endWall.time,
+            durationMinutes: startWall.allDay ? 60 : durationMinutes,
+            allDay: startWall.allDay,
           };
         });
 

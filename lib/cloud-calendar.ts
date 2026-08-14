@@ -113,7 +113,13 @@ export async function importGoogleFromCloud(
 ): Promise<CloudImportResult> {
   const uid = getCloudUid();
   const base = getImportGoogleUrl();
-  const url = `${base}?uid=${encodeURIComponent(uid)}&days=${daysAhead}`;
+  const tz =
+    typeof Intl !== 'undefined'
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : 'America/Los_Angeles';
+  const url = `${base}?uid=${encodeURIComponent(uid)}&days=${daysAhead}&tz=${encodeURIComponent(
+    tz
+  )}`;
   const res = await fetch(url);
   let json: CloudImportResult & { error?: string };
   try {
