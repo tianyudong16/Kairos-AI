@@ -5,7 +5,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 
 import { PriorityTag } from '@/components/ui/PriorityTag';
 import { MiniMonthPicker } from '@/components/ui/MiniMonthPicker';
-import type { Priority, Task } from '@/context/AppContext';
+import type { Category, Priority, Task } from '@/context/AppContext';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import {
@@ -30,6 +30,7 @@ export type TaskEditPatch = {
   date?: string;
   start?: string;
   durationMinutes?: number;
+  category?: Category;
 };
 
 type Props = {
@@ -49,13 +50,14 @@ export function ScheduleTimeline({
   onPriority,
   onUpdateTask,
 }: Props) {
-  const { getCategory } = useApp();
+  const { categories, getCategory } = useApp();
   const { colors } = useTheme();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [titleDraft, setTitleDraft] = useState('');
   const [dateDraft, setDateDraft] = useState('');
   const [startDraft, setStartDraft] = useState('');
   const [durationDraft, setDurationDraft] = useState('');
+  const [categoryDraft, setCategoryDraft] = useState<Category>('work');
   const [editError, setEditError] = useState<string | null>(null);
 
   const styles = useThemedStyles((c) => ({
@@ -167,6 +169,21 @@ export function ScheduleTimeline({
       fontSize: 14,
       color: c.ink,
     },
+    catChipRow: {
+      flexDirection: 'row' as const,
+      flexWrap: 'wrap' as const,
+      gap: 8,
+    },
+    catChip: {
+      borderRadius: radii.pill,
+      borderWidth: 1.5,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+    },
+    catChipText: {
+      fontFamily: fonts.semibold,
+      fontSize: 12,
+    },
     error: { fontFamily: fonts.medium, fontSize: 12, color: c.alert },
     saveBtn: {
       borderRadius: radii.pill,
@@ -184,6 +201,7 @@ export function ScheduleTimeline({
     setDateDraft(task.date);
     setStartDraft(task.start);
     setDurationDraft(String(task.durationMinutes));
+    setCategoryDraft(task.category);
     setEditError(null);
   };
 
@@ -208,11 +226,16 @@ export function ScheduleTimeline({
       setEditError('Pick a date');
       return;
     }
+    if (!categoryDraft) {
+      setEditError('Pick a category');
+      return;
+    }
     onUpdateTask(task.id, {
       title,
       date: dateDraft,
       start,
       durationMinutes,
+      category: categoryDraft,
     });
     setEditingId(null);
     setEditError(null);
@@ -242,7 +265,8 @@ export function ScheduleTimeline({
         </View>
       ) : (
         <Text style={styles.legend}>
-          Tap Edit to change title, date, or time — or nudge ±15m and reorder.
+          Tap Edit to change title, category, date, or time — or nudge ±15m and
+          reorder.
         </Text>
       )}
       {sorted.map((task, index) => {
@@ -395,6 +419,39 @@ export function ScheduleTimeline({
                         placeholderTextColor={colors.inkMuted}
                         style={styles.editInput}
                       />
+                    </View>
+                    <View style={styles.editField}>
+                      <Text style={styles.editLabel}>Category</Text>
+                      <View style={styles.catChipRow}>
+                        {categories.map((cat) => {
+                          const selected = categoryDraft === cat.id;
+                          return (
+                            <Pressable
+                              key={cat.id}
+                              accessibilityRole="button"
+                              accessibilityState={{ selected }}
+                              accessibilityLabel={`Category ${cat.label}`}
+                              onPress={() => setCategoryDraft(cat.id)}
+                              style={[
+                                styles.catChip,
+                                {
+                                  backgroundColor: selected ? cat.color : cat.soft,
+                                  borderColor: cat.color,
+                                },
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.catChipText,
+                                  { color: selected ? colors.white : cat.color },
+                                ]}
+                              >
+                                {cat.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
                     </View>
                     <Text style={styles.editLabel}>Date</Text>
                     <MiniMonthPicker

@@ -1213,6 +1213,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (patch.start || patch.durationMinutes) {
               next.end = addMinutesToTime(next.start, next.durationMinutes);
             }
+            if (patch.category) {
+              next.icon = iconForCategory(patch.category);
+            }
             if (
               patch.syncDirty === undefined &&
               (patch.title ||
