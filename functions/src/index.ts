@@ -218,10 +218,55 @@ export const googleOAuthCallback = onRequest(
           { merge: true }
         );
 
-      res.redirect(`${APP_REDIRECT_WEB.value()}?google=connected`);
+      res.redirect(
+        `${APP_REDIRECT_WEB.value()}?google=connected&uid=${encodeURIComponent(
+          state.uid
+        )}`
+      );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       res.status(500).send(`googleOAuthCallback failed: ${message}`);
+    }
+  }
+);
+
+/**
+ * Lightweight connection check for the Expo app.
+ * GET /googleStatus?uid=...
+ */
+export const googleStatus = onRequest(
+  { cors: true, invoker: "public" },
+  async (req, res) => {
+    try {
+      const uid = String(req.query.uid || "");
+      if (!uid) {
+        res.status(400).json({ error: "Missing uid." });
+        return;
+      }
+      const snap = await db
+        .collection("users")
+        .doc(uid)
+        .collection("calendarConnections")
+        .doc("google")
+        .get();
+      if (!snap.exists) {
+        res.json({ connected: false });
+        return;
+      }
+      const data = snap.data() || {};
+      const lastImportedAt = data.lastImportedAt?.toDate
+        ? data.lastImportedAt.toDate().toISOString()
+        : data.lastImportedAt || null;
+      res.json({
+        connected: Boolean(data.refreshToken || data.accessToken),
+        accountEmail: data.accountEmail || "",
+        calendarId: data.calendarId || "primary",
+        calendarTitle: data.calendarTitle || "Primary",
+        lastImportedAt,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ error: message });
     }
   }
 );

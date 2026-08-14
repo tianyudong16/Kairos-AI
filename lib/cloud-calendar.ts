@@ -29,6 +29,12 @@ export function getCloudUid(): string {
   return `uid-${Date.now()}`;
 }
 
+export function setCloudUid(uid: string) {
+  if (typeof localStorage !== 'undefined' && uid) {
+    localStorage.setItem(CLOUD_UID_KEY, uid);
+  }
+}
+
 export function getGoogleOAuthStartUrl() {
   return (
     readEnv('EXPO_PUBLIC_GOOGLE_OAUTH_START_URL') ||
@@ -41,6 +47,13 @@ export function getImportGoogleUrl() {
   return (
     readEnv('EXPO_PUBLIC_IMPORT_GOOGLE_URL') ||
     'https://importgoogle-terdg5ahya-uc.a.run.app'
+  );
+}
+
+export function getGoogleStatusUrl() {
+  return (
+    readEnv('EXPO_PUBLIC_GOOGLE_STATUS_URL') ||
+    'https://googlestatus-terdg5ahya-uc.a.run.app'
   );
 }
 
@@ -74,6 +87,26 @@ export type CloudImportResult = {
   message: string;
 };
 
+export type CloudGoogleStatus = {
+  connected: boolean;
+  accountEmail?: string;
+  calendarId?: string;
+  calendarTitle?: string;
+  lastImportedAt?: string | null;
+};
+
+/** Check whether Firestore has a Google connection for this device. */
+export async function getGoogleCloudStatus(): Promise<CloudGoogleStatus> {
+  const uid = getCloudUid();
+  const url = `${getGoogleStatusUrl()}?uid=${encodeURIComponent(uid)}`;
+  const res = await fetch(url);
+  const json = (await res.json()) as CloudGoogleStatus & { error?: string };
+  if (!res.ok) {
+    throw new Error(json.error || 'Could not check Google connection.');
+  }
+  return json;
+}
+
 /** Pull Google events via Kairos Cloud Function (uses stored refresh token). */
 export async function importGoogleFromCloud(
   daysAhead = 14
@@ -82,9 +115,16 @@ export async function importGoogleFromCloud(
   const base = getImportGoogleUrl();
   const url = `${base}?uid=${encodeURIComponent(uid)}&days=${daysAhead}`;
   const res = await fetch(url);
-  const json = (await res.json()) as CloudImportResult & {
-    error?: string;
-  };
+  let json: CloudImportResult & { error?: string };
+  try {
+    json = (await res.json()) as CloudImportResult & { error?: string };
+  } catch {
+    throw new Error(
+      res.ok
+        ? 'Could not import from Google Calendar.'
+        : `Import failed (${res.status}). Redeploy Cloud Functions so importGoogle is live.`
+    );
+  }
   if (!res.ok) {
     throw new Error(json.error || 'Could not import from Google Calendar.');
   }

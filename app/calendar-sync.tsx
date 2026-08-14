@@ -15,7 +15,9 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import {
+  getGoogleCloudStatus,
   isCloudGoogleConfigured,
+  setCloudUid,
   startCloudGoogleConnect,
 } from '@/lib/cloud-calendar';
 import {
@@ -34,7 +36,7 @@ import {
 
 export default function CalendarSyncScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ google?: string }>();
+  const params = useLocalSearchParams<{ google?: string; uid?: string }>();
   const { colors } = useTheme();
   const {
     calendarConnections,
@@ -49,9 +51,11 @@ export default function CalendarSyncScreen() {
   const [error, setError] = useState<string | null>(null);
   const [deviceCalendars, setDeviceCalendars] = useState<RemoteCalendar[]>([]);
   const handledGoogleReturn = useRef(false);
+  const verifiedCloud = useRef(false);
 
   const env = useMemo(() => getCalendarEnv(), []);
   const cloudGoogle = isCloudGoogleConfigured();
+  const google = calendarConnections.google;
 
   const styles = useThemedStyles((c) => ({
     content: { gap: 14, paddingBottom: 32 },
@@ -120,6 +124,13 @@ export default function CalendarSyncScreen() {
     success: { fontFamily: fonts.medium, fontSize: 13, color: c.health },
   }));
 
+  const markGoogleDisconnected = () => {
+    setCalendarConnection('google', {
+      provider: 'google',
+      connected: false,
+    });
+  };
+
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
     setError(null);
@@ -133,24 +144,84 @@ export default function CalendarSyncScreen() {
     }
   };
 
-  // After Google OAuth, Cloud Function redirects here with ?google=connected
+  // Keep local "Connected" badge in sync with Firestore (source of truth)
+  useEffect(() => {
+    if (!cloudGoogle || verifiedCloud.current || params.google === 'connected') {
+      return;
+    }
+    verifiedCloud.current = true;
+    void (async () => {
+      try {
+        const status = await getGoogleCloudStatus();
+        if (status.connected) {
+          setCalendarConnection('google', {
+            provider: 'google',
+            connected: true,
+            accountLabel: status.accountEmail,
+            calendarId: status.calendarId || 'primary',
+            calendarTitle: status.calendarTitle || 'Primary',
+            lastPulledAt: status.lastImportedAt || undefined,
+          });
+        } else if (google.connected) {
+          markGoogleDisconnected();
+        }
+      } catch {
+        // Status function may not be deployed yet — don't fake "connected"
+        if (google.connected) {
+          markGoogleDisconnected();
+        }
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloudGoogle]);
+
+  // After Google OAuth, Cloud Function redirects here with ?google=connected&uid=...
   useEffect(() => {
     if (params.google !== 'connected' || handledGoogleReturn.current) return;
     handledGoogleReturn.current = true;
+
+    if (typeof params.uid === 'string' && params.uid) {
+      setCloudUid(params.uid);
+    }
+
     void run('import-google', async () => {
-      setCalendarConnection('google', {
-        provider: 'google',
-        connected: true,
-        calendarId: 'primary',
-        calendarTitle: 'Primary',
-      });
-      const res = await importGoogleCloud(14);
-      setMessage(
-        `Connected Google. ${res.message} Open Schedule or Calendar to see them.`
-      );
-      router.replace('/calendar-sync' as any);
+      try {
+        const res = await importGoogleCloud(14);
+        setCalendarConnection('google', {
+          provider: 'google',
+          connected: true,
+          accountLabel: undefined,
+          calendarId: 'primary',
+          calendarTitle: 'Primary',
+          lastPulledAt: new Date().toISOString(),
+        });
+        // Refresh labels from cloud status when available
+        try {
+          const status = await getGoogleCloudStatus();
+          if (status.connected) {
+            setCalendarConnection('google', {
+              provider: 'google',
+              connected: true,
+              accountLabel: status.accountEmail,
+              calendarId: status.calendarId || 'primary',
+              calendarTitle: status.calendarTitle || 'Primary',
+              lastPulledAt: new Date().toISOString(),
+            });
+          }
+        } catch {
+          // optional
+        }
+        setMessage(
+          `Connected Google. ${res.message} Open Schedule or Calendar to see them.`
+        );
+      } catch (err) {
+        markGoogleDisconnected();
+        throw err;
+      } finally {
+        router.replace('/calendar-sync' as any);
+      }
     });
-  }, [params.google, importGoogleCloud, router, setCalendarConnection]);
+  }, [params.google, params.uid, importGoogleCloud, router, setCalendarConnection]);
 
   const connect = async (provider: CalendarProviderId) => {
     await run(`connect-${provider}`, async () => {
@@ -160,6 +231,7 @@ export default function CalendarSyncScreen() {
             'Google connect is not configured on the Kairos backend yet.'
           );
         }
+        markGoogleDisconnected();
         setMessage('Opening Google…');
         await startCloudGoogleConnect();
         return;
@@ -237,6 +309,8 @@ export default function CalendarSyncScreen() {
                 ? isMicrosoftConfigured() || providerConfigured(provider)
                 : providerConfigured(provider);
           const connecting = busy === `connect-${provider}`;
+          const isGoogleCloud = provider === 'google' && cloudGoogle;
+
           return (
             <View key={provider} style={styles.card}>
               <View style={styles.cardHeader}>
@@ -325,11 +399,11 @@ export default function CalendarSyncScreen() {
                 ) : (
                   <>
                     <PrimaryButton
-                      label="Import"
+                      label={busy === `pull-${provider}` ? 'Importing…' : 'Import'}
                       variant="secondary"
                       onPress={() =>
                         run(`pull-${provider}`, async () => {
-                          if (provider === 'google' && cloudGoogle) {
+                          if (isGoogleCloud) {
                             const res = await importGoogleCloud(14);
                             setMessage(res.message);
                             return;
@@ -339,27 +413,35 @@ export default function CalendarSyncScreen() {
                         })
                       }
                     />
-                    <PrimaryButton
-                      label="Export"
-                      variant="secondary"
-                      onPress={() =>
-                        run(`push-${provider}`, async () => {
-                          const res = await pushCalendar(provider);
-                          setMessage(res.message);
-                        })
-                      }
-                    />
-                    {provider !== 'google' || !cloudGoogle ? (
+                    {isGoogleCloud ? (
                       <PrimaryButton
-                        label="Import & export"
-                        onPress={() =>
-                          run(`sync-${provider}`, async () => {
-                            const res = await syncCalendar(provider);
-                            setMessage(res.message);
-                          })
-                        }
+                        label="Reconnect"
+                        variant="secondary"
+                        onPress={() => connect('google')}
                       />
-                    ) : null}
+                    ) : (
+                      <>
+                        <PrimaryButton
+                          label="Export"
+                          variant="secondary"
+                          onPress={() =>
+                            run(`push-${provider}`, async () => {
+                              const res = await pushCalendar(provider);
+                              setMessage(res.message);
+                            })
+                          }
+                        />
+                        <PrimaryButton
+                          label="Import & export"
+                          onPress={() =>
+                            run(`sync-${provider}`, async () => {
+                              const res = await syncCalendar(provider);
+                              setMessage(res.message);
+                            })
+                          }
+                        />
+                      </>
+                    )}
                     <PrimaryButton
                       label="Disconnect"
                       variant="secondary"
@@ -367,6 +449,12 @@ export default function CalendarSyncScreen() {
                     />
                   </>
                 )}
+                {isGoogleCloud && connection.connected ? (
+                  <Text style={styles.note}>
+                    Export to Google is next. Import pulls the next 14 days into
+                    Schedule.
+                  </Text>
+                ) : null}
                 {provider === 'device' && connection.connected ? (
                   <PrimaryButton
                     label="Refresh calendars"
