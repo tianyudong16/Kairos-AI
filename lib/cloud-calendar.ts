@@ -2,8 +2,9 @@ import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 
-import { fromJsDate } from '@/lib/calendar-sync/time';
+import { fromJsDate, toIsoLocal } from '@/lib/calendar-sync/time';
 import { RemoteEvent } from '@/lib/calendar-sync/types';
+import type { SyncTaskPatch } from '@/lib/calendar-sync/types';
 import { toDateKey } from '@/lib/schedule';
 
 const CLOUD_UID_KEY = 'kairos.cloudUid';
@@ -56,6 +57,13 @@ export function getGoogleStatusUrl() {
   return (
     readEnv('EXPO_PUBLIC_GOOGLE_STATUS_URL') ||
     'https://googlestatus-terdg5ahya-uc.a.run.app'
+  );
+}
+
+export function getExportGoogleUrl() {
+  return (
+    readEnv('EXPO_PUBLIC_EXPORT_GOOGLE_URL') ||
+    'https://exportgoogle-terdg5ahya-uc.a.run.app'
   );
 }
 
@@ -213,5 +221,67 @@ export async function importGoogleFromCloud(
     message:
       json.message ||
       `Imported ${events.length} event${events.length === 1 ? '' : 's'} from Google.`,
+  };
+}
+
+export type CloudExportResult = {
+  created: number;
+  updated: number;
+  failed: number;
+  message: string;
+  links: Array<{ taskId: string; externalId: string; calendarId: string }>;
+};
+
+/** Push Kairos tasks to Google Calendar via Cloud Function. */
+export async function exportGoogleToCloud(
+  tasks: SyncTaskPatch[]
+): Promise<CloudExportResult> {
+  if (!tasks.length) {
+    return {
+      created: 0,
+      updated: 0,
+      failed: 0,
+      message: 'No tasks to export.',
+      links: [],
+    };
+  }
+  const uid = getCloudUid();
+  const url = getExportGoogleUrl();
+  const payload = {
+    uid,
+    tasks: tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      category: task.category,
+      priority: task.priority,
+      externalId: task.externalId,
+      startDateTime: toIsoLocal(task.date, task.start),
+      endDateTime: toIsoLocal(task.date, task.end),
+    })),
+  };
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  let json: CloudExportResult & { error?: string };
+  try {
+    json = (await res.json()) as CloudExportResult & { error?: string };
+  } catch {
+    throw new Error(
+      `Export failed (${res.status}). Redeploy Cloud Functions so exportGoogle is live.`
+    );
+  }
+  if (!res.ok) {
+    throw new Error(json.error || 'Could not export to Google Calendar.');
+  }
+  return {
+    created: json.created || 0,
+    updated: json.updated || 0,
+    failed: json.failed || 0,
+    links: json.links || [],
+    message:
+      json.message ||
+      `Exported to Google: ${json.created || 0} created, ${json.updated || 0} updated.`,
   };
 }

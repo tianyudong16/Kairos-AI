@@ -22,8 +22,16 @@ import {
   saveConnections,
   SyncTaskPatch,
 } from '@/lib/calendar-sync';
-import { importGoogleFromCloud } from '@/lib/cloud-calendar';
+import { importGoogleFromCloud, exportGoogleToCloud } from '@/lib/cloud-calendar';
 import { ImportedCalendarEvent } from '@/lib/ics';
+import {
+  emptyWorkspace,
+  loadSession,
+  loadWorkspace,
+  saveSession,
+  saveWorkspace,
+  workspaceKeyForUser,
+} from '@/lib/user-workspace';
 import {
   addDays,
   addMinutesToTime,
@@ -126,6 +134,13 @@ type AppContextValue = {
   importGoogleCloud: (
     daysAhead?: number
   ) => Promise<{ imported: number; message: string }>;
+  /** Push Kairos tasks to Google Calendar via Cloud Function. */
+  exportGoogleCloud: () => Promise<{
+    created: number;
+    updated: number;
+    failed: number;
+    message: string;
+  }>;
   coachMessages: CoachMessage[];
   lastCoachChanges: CoachChange[];
   sendCoachMessage: (text: string) => void;
@@ -290,6 +305,64 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [calendarConnections, setCalendarConnections] = useState(() =>
     loadConnections()
   );
+  const [workspaceReady, setWorkspaceReady] = useState(false);
+
+  const applyWorkspace = (ws: ReturnType<typeof emptyWorkspace>) => {
+    setOnboarded(ws.onboarded);
+    setChronotypeState(ws.chronotype);
+    setSleep(ws.sleep);
+    setTasks(ws.tasks);
+    setCategories(ws.categories.length ? ws.categories : DEFAULT_CATEGORIES);
+    setCalendarConnections(ws.calendarConnections);
+  };
+
+  const resetWorkspaceMemory = () => {
+    const defaultsSleep = chronotypeDefaults('morning');
+    setOnboarded(false);
+    setChronotypeState('morning');
+    setSleep(defaultsSleep.sleep);
+    setTasks(initialTasks);
+    setCategories(DEFAULT_CATEGORIES);
+    setCalendarConnections(loadConnections());
+  };
+
+  // Restore last session + that user's saved schedule/onboarding
+  useEffect(() => {
+    const session = loadSession();
+    if (!session) {
+      setWorkspaceReady(true);
+      return;
+    }
+    const key = workspaceKeyForUser(session);
+    const stored = loadWorkspace(key);
+    const account = !session.isGuest
+      ? findAccount(session.email, loadAccounts())
+      : null;
+    if (!session.isGuest && !account) {
+      saveSession(null);
+      setWorkspaceReady(true);
+      return;
+    }
+    const ws =
+      stored ||
+      emptyWorkspace(
+        DEFAULT_CATEGORIES,
+        session.isGuest ? initialTasks : []
+      );
+    // Older accounts may have finished onboarding before persistence existed
+    if (!stored && account?.lifestyle) {
+      ws.onboarded = true;
+    }
+    setUser({
+      id: session.isGuest ? `guest-${session.email}` : `u-${account!.email}`,
+      name: session.name || account?.name || 'Guest',
+      email: session.email,
+      isGuest: session.isGuest,
+      lifestyle: account?.lifestyle ?? null,
+    });
+    applyWorkspace(ws);
+    setWorkspaceReady(true);
+  }, []);
 
   useEffect(() => {
     saveAccounts(accounts);
@@ -298,6 +371,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     saveConnections(calendarConnections);
   }, [calendarConnections]);
+
+  // Persist the signed-in user's workspace (tasks, onboarding, prefs)
+  useEffect(() => {
+    if (!workspaceReady || !user) return;
+    const key = workspaceKeyForUser(user);
+    saveWorkspace(key, {
+      version: 1,
+      onboarded,
+      chronotype,
+      sleep,
+      tasks,
+      categories,
+      calendarConnections,
+      updatedAt: new Date().toISOString(),
+    });
+  }, [
+    workspaceReady,
+    user,
+    onboarded,
+    chronotype,
+    sleep,
+    tasks,
+    categories,
+    calendarConnections,
+  ]);
 
   const upsertRemoteEvents = (
     provider: CalendarProviderId,
@@ -832,14 +930,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           lifestyle: null,
         };
         setAccounts((prev) => [...prev, nextAccount]);
+        const fresh = emptyWorkspace(DEFAULT_CATEGORIES, []);
+        applyWorkspace(fresh);
         setUser({
-          id: `u-${Date.now()}`,
+          id: `u-${trimmedEmail}`,
           name: trimmedName,
           email: trimmedEmail,
           isGuest: false,
           lifestyle: null,
         });
-        setOnboarded(false);
+        saveSession({
+          email: trimmedEmail,
+          isGuest: false,
+          name: trimmedName,
+        });
+        saveWorkspace(workspaceKeyForUser({ email: trimmedEmail }), fresh);
         return null;
       },
       signIn: ({ email, password }) => {
@@ -857,6 +962,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (account.password !== password) {
           return 'Incorrect password';
         }
+        const key = workspaceKeyForUser({ email: account.email });
+        const stored = loadWorkspace(key);
+        const ws =
+          stored ||
+          emptyWorkspace(DEFAULT_CATEGORIES, []);
+        if (!stored && account.lifestyle) {
+          ws.onboarded = true;
+        }
+        applyWorkspace(ws);
         setUser({
           id: `u-${account.email}`,
           name: account.name,
@@ -864,17 +978,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           isGuest: false,
           lifestyle: account.lifestyle,
         });
+        saveSession({
+          email: account.email,
+          isGuest: false,
+          name: account.name,
+        });
+        saveWorkspace(key, ws);
         return null;
       },
       signInAsGuest: () => {
+        const key = workspaceKeyForUser({ email: 'guest@kairos.app', isGuest: true });
+        const stored = loadWorkspace(key);
+        const ws = stored || emptyWorkspace(DEFAULT_CATEGORIES, initialTasks);
+        applyWorkspace(ws);
         setUser({
-          id: `guest-${Date.now()}`,
+          id: `guest-local`,
           name: 'Guest',
           email: 'guest@kairos.app',
           isGuest: true,
           lifestyle: null,
         });
-        setOnboarded(false);
+        saveSession({
+          email: 'guest@kairos.app',
+          isGuest: true,
+          name: 'Guest',
+        });
       },
       updateProfile: (patch) => {
         setUser((prev) => {
@@ -903,12 +1031,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               )
             );
           }
+          saveSession({
+            email: next.email,
+            isGuest: next.isGuest,
+            name: next.name,
+          });
           return next;
         });
       },
       signOut: () => {
+        if (user) {
+          saveWorkspace(workspaceKeyForUser(user), {
+            version: 1,
+            onboarded,
+            chronotype,
+            sleep,
+            tasks,
+            categories,
+            calendarConnections,
+            updatedAt: new Date().toISOString(),
+          });
+        }
+        saveSession(null);
         setUser(null);
-        setOnboarded(false);
+        resetWorkspaceMemory();
       },
       onboarded,
       chronotype,
@@ -1326,6 +1472,53 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           message:
             result.message ||
             `Imported ${imported} event${imported === 1 ? '' : 's'} from Google.`,
+        };
+      },
+      exportGoogleCloud: async () => {
+        const payload = tasks.map((task) => ({
+          id: task.id,
+          title: task.title,
+          date: task.date,
+          start: task.start,
+          end: task.end,
+          durationMinutes: task.durationMinutes,
+          category: task.category,
+          priority: task.priority,
+          externalId: task.externalId,
+          externalCalendarId: task.externalCalendarId,
+          provider: task.provider as CalendarProviderId | undefined,
+          syncDirty: task.syncDirty,
+        }));
+        const result = await exportGoogleToCloud(payload);
+        if (result.links?.length) {
+          setTasks((prev) =>
+            prev.map((task) => {
+              const link = result.links.find((l) => l.taskId === task.id);
+              if (!link) return task;
+              return {
+                ...task,
+                externalId: link.externalId,
+                externalCalendarId: link.calendarId,
+                provider: 'google',
+                syncDirty: false,
+              };
+            })
+          );
+        }
+        setCalendarConnections((prev) => ({
+          ...prev,
+          google: {
+            ...prev.google,
+            provider: 'google',
+            connected: true,
+            lastPushedAt: new Date().toISOString(),
+          },
+        }));
+        return {
+          created: result.created,
+          updated: result.updated,
+          failed: result.failed,
+          message: result.message,
         };
       },
       coachMessages,

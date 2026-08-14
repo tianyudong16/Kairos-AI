@@ -538,3 +538,206 @@ export const importGoogle = onRequest(
     }
   }
 );
+
+/**
+ * Export Kairos tasks to Google Calendar.
+ * POST JSON { uid, tasks: [{ id, title, startDateTime, endDateTime, externalId?, category?, priority? }] }
+ */
+export const exportGoogle = onRequest(
+  {
+    secrets: [GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET],
+    cors: true,
+    invoker: "public",
+  },
+  async (req, res) => {
+    try {
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+      if (req.method !== "POST") {
+        res.status(405).json({ error: "Use POST." });
+        return;
+      }
+
+      const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as {
+        uid?: string;
+        tasks?: Array<{
+          id: string;
+          title: string;
+          startDateTime: string;
+          endDateTime: string;
+          externalId?: string;
+          category?: string;
+          priority?: string;
+        }>;
+      };
+
+      const uid = String(body.uid || "");
+      const tasks = Array.isArray(body.tasks) ? body.tasks : [];
+      if (!uid) {
+        res.status(400).json({ error: "Missing uid." });
+        return;
+      }
+      if (!tasks.length) {
+        res.json({
+          created: 0,
+          updated: 0,
+          failed: 0,
+          links: [],
+          message: "No tasks to export.",
+        });
+        return;
+      }
+
+      const snap = await db
+        .collection("users")
+        .doc(uid)
+        .collection("calendarConnections")
+        .doc("google")
+        .get();
+      if (!snap.exists) {
+        res.status(404).json({
+          error: "Google is not connected for this device yet. Tap Connect first.",
+        });
+        return;
+      }
+
+      const data = snap.data() || {};
+      let accessToken = data.accessToken as string | undefined;
+      const refreshToken = data.refreshToken as string | undefined;
+      const calendarId = (data.calendarId as string) || "primary";
+
+      const expiresAt = data.expiresAt?.toDate
+        ? data.expiresAt.toDate()
+        : data.expiresAt
+          ? new Date(data.expiresAt)
+          : null;
+      const needsRefresh =
+        !accessToken ||
+        (expiresAt && expiresAt.getTime() < Date.now() + 60_000);
+
+      if (needsRefresh) {
+        if (!refreshToken) {
+          res.status(401).json({
+            error: "Google connection expired. Connect Google again.",
+          });
+          return;
+        }
+        const refreshed = await refreshGoogleAccessToken(refreshToken);
+        accessToken = refreshed.access_token!;
+        await snap.ref.set(
+          {
+            accessToken,
+            expiresAt: refreshed.expires_in
+              ? new Date(Date.now() + refreshed.expires_in * 1000)
+              : null,
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
+
+      let created = 0;
+      let updated = 0;
+      let failed = 0;
+      const links: Array<{
+        taskId: string;
+        externalId: string;
+        calendarId: string;
+      }> = [];
+      const errors: string[] = [];
+
+      for (const task of tasks) {
+        try {
+          const eventBody = {
+            summary: task.title,
+            description: `Synced from Kairos AI${
+              task.category ? ` · ${task.category}` : ""
+            }${task.priority ? ` · ${task.priority}` : ""}`,
+            start: { dateTime: task.startDateTime },
+            end: { dateTime: task.endDateTime },
+          };
+
+          if (task.externalId) {
+            const patchUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+              calendarId
+            )}/events/${encodeURIComponent(task.externalId)}`;
+            const patchRes = await fetch(patchUrl, {
+              method: "PATCH",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(eventBody),
+            });
+            if (!patchRes.ok) {
+              const errText = await patchRes.text();
+              throw new Error(errText || "Google update failed");
+            }
+            updated += 1;
+            links.push({
+              taskId: task.id,
+              externalId: task.externalId,
+              calendarId,
+            });
+          } else {
+            const createUrl = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(
+              calendarId
+            )}/events`;
+            const createRes = await fetch(createUrl, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(eventBody),
+            });
+            const createdJson = (await createRes.json()) as {
+              id?: string;
+              error?: { message?: string };
+            };
+            if (!createRes.ok || !createdJson.id) {
+              throw new Error(
+                createdJson.error?.message || "Google create failed"
+              );
+            }
+            created += 1;
+            links.push({
+              taskId: task.id,
+              externalId: createdJson.id,
+              calendarId,
+            });
+          }
+        } catch (err) {
+          failed += 1;
+          errors.push(
+            `${task.title}: ${err instanceof Error ? err.message : "failed"}`
+          );
+        }
+      }
+
+      await snap.ref.set(
+        {
+          lastExportedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      res.json({
+        created,
+        updated,
+        failed,
+        links,
+        errors,
+        message: `Exported to Google: ${created} created, ${updated} updated${
+          failed ? `, ${failed} failed` : ""
+        }.`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ error: message });
+    }
+  }
+);

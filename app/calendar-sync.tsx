@@ -46,6 +46,7 @@ export default function CalendarSyncScreen() {
     pushCalendar,
     syncCalendar,
     importGoogleCloud,
+    exportGoogleCloud,
   } = useApp();
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -405,11 +406,23 @@ export default function CalendarSyncScreen() {
                       }
                     />
                     {isGoogleCloud ? (
-                      <PrimaryButton
-                        label="Reconnect"
-                        variant="secondary"
-                        onPress={() => connect('google')}
-                      />
+                      <>
+                        <PrimaryButton
+                          label={busy === 'export-google' ? 'Exporting…' : 'Export'}
+                          variant="secondary"
+                          onPress={() =>
+                            run('export-google', async () => {
+                              const res = await exportGoogleCloud();
+                              setMessage(res.message);
+                            })
+                          }
+                        />
+                        <PrimaryButton
+                          label="Reconnect"
+                          variant="secondary"
+                          onPress={() => connect('google')}
+                        />
+                      </>
                     ) : (
                       <>
                         <PrimaryButton
@@ -442,8 +455,8 @@ export default function CalendarSyncScreen() {
                 )}
                 {isGoogleCloud && connection.connected ? (
                   <Text style={styles.note}>
-                    Export to Google is next. Import pulls the next 14 days into
-                    Schedule.
+                    Import pulls Google events into Schedule. Export sends your
+                    Kairos tasks to Google Calendar.
                   </Text>
                 ) : null}
                 {provider === 'device' && connection.connected ? (

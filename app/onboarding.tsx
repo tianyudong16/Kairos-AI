@@ -194,6 +194,7 @@ export default function OnboardingScreen() {
     setSleep,
     completeOnboarding,
     isAuthenticated,
+    onboarded,
     user,
     updateProfile,
   } = useApp();
@@ -211,8 +212,12 @@ export default function OnboardingScreen() {
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace('/login');
+      return;
     }
-  }, [isAuthenticated, router]);
+    if (onboarded) {
+      router.replace('/(tabs)');
+    }
+  }, [isAuthenticated, onboarded, router]);
 
   const wakeIsPreset = useMemo(
     () => wakeOptions.includes(sleep.wakeTime),
