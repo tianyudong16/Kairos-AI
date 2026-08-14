@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -15,16 +15,17 @@ import { PrimaryButton } from '@/components/ui/PrimaryButton';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import {
+  isCloudGoogleConfigured,
+  startCloudGoogleConnect,
+} from '@/lib/cloud-calendar';
+import {
   CalendarProviderId,
   connectDeviceCalendar,
-  connectGoogle,
   connectMicrosoft,
   getCalendarEnv,
   isDeviceCalendarSupported,
-  isGoogleConfigured,
   isMicrosoftConfigured,
   listDeviceCalendars,
-  listGoogleCalendars,
   listMicrosoftCalendars,
   PROVIDER_META,
   providerConfigured,
@@ -33,6 +34,7 @@ import {
 
 export default function CalendarSyncScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ google?: string }>();
   const { colors } = useTheme();
   const {
     calendarConnections,
@@ -40,14 +42,16 @@ export default function CalendarSyncScreen() {
     pullCalendar,
     pushCalendar,
     syncCalendar,
+    importGoogleCloud,
   } = useApp();
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deviceCalendars, setDeviceCalendars] = useState<RemoteCalendar[]>([]);
-  const [showSetup, setShowSetup] = useState(false);
+  const handledGoogleReturn = useRef(false);
 
   const env = useMemo(() => getCalendarEnv(), []);
+  const cloudGoogle = isCloudGoogleConfigured();
 
   const styles = useThemedStyles((c) => ({
     content: { gap: 14, paddingBottom: 32 },
@@ -114,23 +118,6 @@ export default function CalendarSyncScreen() {
     note: { fontFamily: fonts.body, fontSize: 12, color: c.inkMuted, lineHeight: 17 },
     error: { fontFamily: fonts.medium, fontSize: 13, color: c.alert },
     success: { fontFamily: fonts.medium, fontSize: 13, color: c.health },
-    setupBox: {
-      borderRadius: radii.md,
-      borderWidth: 1,
-      borderColor: c.line,
-      backgroundColor: c.bg,
-      padding: 12,
-      gap: 6,
-    },
-    setupTitle: { fontFamily: fonts.semibold, fontSize: 13, color: c.ink },
-    code: {
-      fontFamily: fonts.medium,
-      fontSize: 11,
-      color: c.work,
-      backgroundColor: c.workSoft,
-      padding: 8,
-      borderRadius: 8,
-    },
   }));
 
   const run = async (key: string, fn: () => Promise<void>) => {
@@ -146,24 +133,35 @@ export default function CalendarSyncScreen() {
     }
   };
 
+  // After Google OAuth, Cloud Function redirects here with ?google=connected
+  useEffect(() => {
+    if (params.google !== 'connected' || handledGoogleReturn.current) return;
+    handledGoogleReturn.current = true;
+    void run('import-google', async () => {
+      setCalendarConnection('google', {
+        provider: 'google',
+        connected: true,
+        calendarId: 'primary',
+        calendarTitle: 'Primary',
+      });
+      const res = await importGoogleCloud(14);
+      setMessage(
+        `Connected Google. ${res.message} Open Schedule or Calendar to see them.`
+      );
+      router.replace('/calendar-sync' as any);
+    });
+  }, [params.google, importGoogleCloud, router, setCalendarConnection]);
+
   const connect = async (provider: CalendarProviderId) => {
     await run(`connect-${provider}`, async () => {
       if (provider === 'google') {
-        const connection = await connectGoogle();
-        setCalendarConnection('google', connection);
-        try {
-          const calendars = await listGoogleCalendars(connection.accessToken!);
-          if (calendars[0]) {
-            setCalendarConnection('google', {
-              ...connection,
-              calendarId: calendars[0].id,
-              calendarTitle: calendars[0].title,
-            });
-          }
-        } catch {
-          // keep primary
+        if (!cloudGoogle) {
+          throw new Error(
+            'Google connect is not configured on the Kairos backend yet.'
+          );
         }
-        setMessage(`Connected Google as ${connection.accountLabel}.`);
+        setMessage('Opening Google…');
+        await startCloudGoogleConnect();
         return;
       }
       if (provider === 'microsoft') {
@@ -211,7 +209,10 @@ export default function CalendarSyncScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Back"
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) router.back();
+              else router.replace('/(tabs)/calendar');
+            }}
             style={styles.backBtn}
           >
             <Ionicons name="chevron-back" size={20} color={colors.ink} />
@@ -222,66 +223,19 @@ export default function CalendarSyncScreen() {
         <Text style={styles.brand}>Kairos AI</Text>
         <Text style={styles.title}>Import & export</Text>
         <Text style={styles.subtitle}>
-          Connect Google, Outlook, or this phone’s calendars (Apple / Samsung). Import
-          events into Kairos and export Kairos tasks back out.
+          Connect Google once — Kairos imports your events into Schedule
+          automatically. Outlook and Apple/Samsung follow the same idea.
         </Text>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Show calendar sync setup instructions"
-          onPress={() => setShowSetup((v) => !v)}
-          style={styles.card}
-        >
-          <Text style={styles.cardTitle}>
-            {showSetup ? 'Hide setup guide' : 'Show setup guide (API keys)'}
-          </Text>
-          {showSetup ? (
-            <View style={styles.setupBox}>
-              <Text style={styles.setupTitle}>1) Google Calendar</Text>
-              <Text style={styles.note}>
-                Google Cloud Console → APIs & Services → enable Calendar API → create
-                OAuth client IDs (Web, iOS, Android). Add authorized redirect URI from
-                Expo AuthSession (scheme `kairosai`).
-              </Text>
-              <Text style={styles.code}>
-                EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=...{'\n'}
-                EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=...{'\n'}
-                EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=...
-              </Text>
-              <Text style={styles.setupTitle}>2) Outlook / Microsoft 365</Text>
-              <Text style={styles.note}>
-                Azure Portal → App registrations → New app → add Redirect URI (SPA /
-                mobile) for `kairosai://oauth` → API permissions: Calendars.ReadWrite,
-                User.Read, offline_access.
-              </Text>
-              <Text style={styles.code}>
-                EXPO_PUBLIC_MICROSOFT_CLIENT_ID=...{'\n'}
-                EXPO_PUBLIC_MICROSOFT_TENANT_ID=common
-              </Text>
-              <Text style={styles.setupTitle}>3) Apple / Samsung</Text>
-              <Text style={styles.note}>
-                Uses on-device calendars via Expo Calendar. Build the iOS/Android app
-                (not web-only). Apple Calendar appears on iOS; Samsung Calendar appears
-                on Samsung Android devices. Grant calendar permission when prompted.
-              </Text>
-              <Text style={styles.note}>
-                Status — Google configured: {isGoogleConfigured() ? 'yes' : 'no'} ·
-                Microsoft configured: {isMicrosoftConfigured() ? 'yes' : 'no'} · Device
-                supported here: {isDeviceCalendarSupported() ? 'yes' : 'no (web)'}
-              </Text>
-              {!env.googleWebClientId && !env.microsoftClientId ? (
-                <Text style={styles.note}>
-                  Tip: copy `.env.example` to `.env` and restart Expo after adding keys.
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-        </Pressable>
 
         {providers.map((provider) => {
           const meta = PROVIDER_META[provider];
           const connection = calendarConnections[provider];
-          const configured = providerConfigured(provider);
+          const configured =
+            provider === 'google'
+              ? cloudGoogle
+              : provider === 'microsoft'
+                ? isMicrosoftConfigured() || providerConfigured(provider)
+                : providerConfigured(provider);
           const connecting = busy === `connect-${provider}`;
           return (
             <View key={provider} style={styles.card}>
@@ -291,7 +245,11 @@ export default function CalendarSyncScreen() {
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={styles.cardTitle}>{meta.label}</Text>
-                  <Text style={styles.cardMeta}>{meta.blurb}</Text>
+                  <Text style={styles.cardMeta}>
+                    {provider === 'google'
+                      ? 'Sign in with Google — no API keys for you to paste.'
+                      : meta.blurb}
+                  </Text>
                 </View>
                 <Text style={connection.connected ? styles.status : styles.statusOff}>
                   {connection.connected ? 'Connected' : 'Not connected'}
@@ -303,24 +261,29 @@ export default function CalendarSyncScreen() {
                   {connection.accountLabel || meta.label}
                   {connection.calendarTitle ? ` · ${connection.calendarTitle}` : ''}
                   {connection.lastPulledAt
-                    ? `\nLast import: ${new Date(connection.lastPulledAt).toLocaleString()}`
+                    ? `\nLast import: ${new Date(
+                        connection.lastPulledAt
+                      ).toLocaleString()}`
                     : ''}
                   {connection.lastPushedAt
-                    ? `\nLast export: ${new Date(connection.lastPushedAt).toLocaleString()}`
+                    ? `\nLast export: ${new Date(
+                        connection.lastPushedAt
+                      ).toLocaleString()}`
                     : ''}
                 </Text>
               ) : null}
 
-              {!configured && provider !== 'device' ? (
-                <Text style={styles.error}>
-                  Missing client ID — open the setup guide above.
+              {!configured && provider === 'microsoft' ? (
+                <Text style={styles.note}>
+                  Outlook live connect still needs Microsoft client setup on our
+                  backend. Use Import .ics for now, or Connect Google.
                 </Text>
               ) : null}
 
               {provider === 'device' && !isDeviceCalendarSupported() ? (
                 <Text style={styles.note}>
-                  Device calendars require the iOS/Android app. On web, use Google or
-                  Outlook OAuth, or Settings → Import .ics.
+                  Device calendars require the iOS/Android app. On web, use Google
+                  or Import .ics.
                 </Text>
               ) : null}
 
@@ -366,6 +329,11 @@ export default function CalendarSyncScreen() {
                       variant="secondary"
                       onPress={() =>
                         run(`pull-${provider}`, async () => {
+                          if (provider === 'google' && cloudGoogle) {
+                            const res = await importGoogleCloud(14);
+                            setMessage(res.message);
+                            return;
+                          }
                           const res = await pullCalendar(provider);
                           setMessage(res.message);
                         })
@@ -381,15 +349,17 @@ export default function CalendarSyncScreen() {
                         })
                       }
                     />
-                    <PrimaryButton
-                      label="Import & export"
-                      onPress={() =>
-                        run(`sync-${provider}`, async () => {
-                          const res = await syncCalendar(provider);
-                          setMessage(res.message);
-                        })
-                      }
-                    />
+                    {provider !== 'google' || !cloudGoogle ? (
+                      <PrimaryButton
+                        label="Import & export"
+                        onPress={() =>
+                          run(`sync-${provider}`, async () => {
+                            const res = await syncCalendar(provider);
+                            setMessage(res.message);
+                          })
+                        }
+                      />
+                    ) : null}
                     <PrimaryButton
                       label="Disconnect"
                       variant="secondary"
@@ -425,8 +395,8 @@ export default function CalendarSyncScreen() {
         {message ? <Text style={styles.success}>{message}</Text> : null}
 
         <Text style={styles.note}>
-          Import brings remote events into Kairos. Export sends Kairos tasks (new or
-          edited) to the connected calendar — including Outlook.
+          Google uses Kairos’s secure backend. After you connect, events appear on
+          Schedule and Calendar automatically.
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -439,21 +409,10 @@ export default function CalendarSyncScreen() {
             One-time upload from an Outlook, Google, or Apple calendar export.
           </Text>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to calendar"
-          onPress={() => router.push('/(tabs)/calendar')}
-          style={styles.card}
-        >
-          <Text style={styles.cardTitle}>Export .ics from Calendar tab</Text>
+        {Platform.OS === 'web' && !env.microsoftClientId ? (
           <Text style={styles.note}>
-            Prefer a file? Open Calendar → Export .ics file to download your schedule.
-          </Text>
-        </Pressable>
-        {Platform.OS === 'web' ? (
-          <Text style={styles.note}>
-            Running on web: Google/Outlook OAuth work here once client IDs are set. Apple
-            & Samsung need a native build.
+            Outlook two-way sync is next on the backend roadmap. .ics import works
+            today.
           </Text>
         ) : null}
       </ScrollView>

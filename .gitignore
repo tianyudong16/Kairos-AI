@@ -33,6 +33,14 @@ yarn-error.*
 # local env files
 .env
 .env*.local
+.env.kairos-ai-*
+
+# Firebase functions build output / deps
+functions/node_modules/
+functions/lib/
+firebase-debug.log
+firebase-debug.*.log
+
 
 # typescript
 *.tsbuildinfo

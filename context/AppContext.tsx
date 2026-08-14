@@ -22,6 +22,7 @@ import {
   saveConnections,
   SyncTaskPatch,
 } from '@/lib/calendar-sync';
+import { importGoogleFromCloud } from '@/lib/cloud-calendar';
 import { ImportedCalendarEvent } from '@/lib/ics';
 import {
   addDays,
@@ -121,6 +122,10 @@ type AppContextValue = {
   syncCalendar: (
     provider: CalendarProviderId
   ) => Promise<{ message: string }>;
+  /** Seamless Google import via Kairos Cloud Function (Firestore tokens). */
+  importGoogleCloud: (
+    daysAhead?: number
+  ) => Promise<{ imported: number; message: string }>;
   coachMessages: CoachMessage[];
   lastCoachChanges: CoachChange[];
   sendCoachMessage: (text: string) => void;
@@ -1299,6 +1304,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           message: `Imported ${pulled} and exported ${
             pushResult.created + pushResult.updated
           } for ${provider}.`,
+        };
+      },
+      importGoogleCloud: async (daysAhead = 14) => {
+        const result = await importGoogleFromCloud(daysAhead);
+        const imported = upsertRemoteEvents('google', result.events);
+        setCalendarConnections((prev) => ({
+          ...prev,
+          google: {
+            provider: 'google',
+            connected: true,
+            accountLabel: result.accountEmail || prev.google.accountLabel,
+            calendarId: result.calendarId || prev.google.calendarId || 'primary',
+            calendarTitle:
+              result.calendarTitle || prev.google.calendarTitle || 'Primary',
+            lastPulledAt: new Date().toISOString(),
+          },
+        }));
+        return {
+          imported,
+          message:
+            result.message ||
+            `Imported ${imported} event${imported === 1 ? '' : 's'} from Google.`,
         };
       },
       coachMessages,
