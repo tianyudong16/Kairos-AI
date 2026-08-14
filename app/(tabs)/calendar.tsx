@@ -20,37 +20,6 @@ import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-const calendarPorts = [
-  {
-    key: 'google',
-    title: 'Google Calendar',
-    meta: 'Import events in · export Kairos tasks out',
-    icon: 'logo-google' as const,
-    href: '/calendar-sync',
-  },
-  {
-    key: 'outlook',
-    title: 'Outlook / Microsoft 365',
-    meta: 'Import events in · export Kairos tasks out',
-    icon: 'mail-outline' as const,
-    href: '/calendar-sync',
-  },
-  {
-    key: 'device',
-    title: 'Apple / Samsung',
-    meta: 'Import & export with calendars on this phone',
-    icon: 'phone-portrait-outline' as const,
-    href: '/calendar-sync',
-  },
-  {
-    key: 'ics-import',
-    title: 'Import .ics file',
-    meta: 'One-time upload from Outlook, Google, or Apple export',
-    icon: 'download-outline' as const,
-    href: '/import-calendar',
-  },
-] as const;
-
 export default function CalendarScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -268,47 +237,6 @@ export default function CalendarScreen() {
       <Text style={styles.title}>Calendar</Text>
       <Text style={styles.subtitle}>Plan by week or month — tap a day to focus it.</Text>
 
-      <Text style={styles.sectionLabel}>Import & export</Text>
-      <Text style={styles.sectionHint}>
-        Bring events in from Google, Outlook, or Apple — or send your Kairos schedule out.
-      </Text>
-      {calendarPorts.map((port) => (
-        <Pressable
-          key={port.key}
-          accessibilityRole="button"
-          accessibilityLabel={`${port.title}. ${port.meta}`}
-          onPress={() => router.push(port.href as any)}
-          style={styles.portRow}
-        >
-          <View style={styles.portIcon}>
-            <Ionicons name={port.icon} size={18} color={colors.calendar} />
-          </View>
-          <View style={styles.portCopy}>
-            <Text style={styles.portTitle}>{port.title}</Text>
-            <Text style={styles.portMeta}>{port.meta}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
-        </Pressable>
-      ))}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Export Kairos schedule as ics file"
-        onPress={exportSchedule}
-        style={styles.portRow}
-      >
-        <View style={styles.portIcon}>
-          <Ionicons name="share-outline" size={18} color={colors.calendar} />
-        </View>
-        <View style={styles.portCopy}>
-          <Text style={styles.portTitle}>Export .ics file</Text>
-          <Text style={styles.portMeta}>
-            Download your Kairos tasks for Outlook, Google, or Apple
-          </Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
-      </Pressable>
-      {exportNote ? <Text style={styles.exportNote}>{exportNote}</Text> : null}
-
       <View style={styles.modeRow}>
         {(['week', 'month'] as const).map((value) => (
           <Pressable
@@ -460,6 +388,63 @@ export default function CalendarScreen() {
           <Text style={styles.todayText}>Jump to today</Text>
         </Pressable>
       ) : null}
+
+      <Text style={styles.sectionLabel}>Import & export</Text>
+      <Text style={styles.sectionHint}>
+        Connect Google, Outlook, or Apple — or use a one-time .ics file.
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open live calendar import and export"
+        onPress={() => router.push('/calendar-sync' as any)}
+        style={styles.portRow}
+      >
+        <View style={styles.portIcon}>
+          <Ionicons name="swap-horizontal-outline" size={18} color={colors.calendar} />
+        </View>
+        <View style={styles.portCopy}>
+          <Text style={styles.portTitle}>Google · Outlook · Apple / Samsung</Text>
+          <Text style={styles.portMeta}>
+            Connect once, then import or export your schedule
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Import calendar from ics file"
+        onPress={() => router.push('/import-calendar' as any)}
+        style={styles.portRow}
+      >
+        <View style={styles.portIcon}>
+          <Ionicons name="download-outline" size={18} color={colors.calendar} />
+        </View>
+        <View style={styles.portCopy}>
+          <Text style={styles.portTitle}>Import .ics file</Text>
+          <Text style={styles.portMeta}>
+            One-time upload from Outlook, Google, or Apple export
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Export Kairos schedule as ics file"
+        onPress={exportSchedule}
+        style={styles.portRow}
+      >
+        <View style={styles.portIcon}>
+          <Ionicons name="share-outline" size={18} color={colors.calendar} />
+        </View>
+        <View style={styles.portCopy}>
+          <Text style={styles.portTitle}>Export .ics file</Text>
+          <Text style={styles.portMeta}>
+            Download your Kairos tasks for Outlook, Google, or Apple
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+      </Pressable>
+      {exportNote ? <Text style={styles.exportNote}>{exportNote}</Text> : null}
     </ScrollView>
   );
 }

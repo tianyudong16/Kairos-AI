@@ -8,10 +8,14 @@ import type { Priority, Task } from '@/context/AppContext';
 import { useApp } from '@/context/AppContext';
 import { fonts, radii, useTheme, useThemedStyles } from '@/constants/theme';
 import {
+  addDays,
   addMinutesToTime,
   formatDuration,
+  formatShortDate,
+  isToday,
   normalizeTimeInput,
   timeToMinutes,
+  toDateKey,
 } from '@/lib/schedule';
 
 const iconMap = {
@@ -23,34 +27,43 @@ const iconMap = {
   book: 'book-outline',
 } as const;
 
+export type TaskEditPatch = {
+  title?: string;
+  date?: string;
+  start?: string;
+  durationMinutes?: number;
+};
+
 type Props = {
   tasks: Task[];
   onMoveEarlier?: (id: string) => void;
   onMoveLater?: (id: string) => void;
-  onMoveTomorrow?: (id: string) => void;
   onDelete?: (id: string) => void;
   onPriority?: (id: string, priority: Priority) => void;
-  onUpdateTiming?: (
-    id: string,
-    patch: { start?: string; durationMinutes?: number }
-  ) => void;
+  onUpdateTask?: (id: string, patch: TaskEditPatch) => void;
 };
 
 export function ScheduleTimeline({
   tasks,
   onMoveEarlier,
   onMoveLater,
-  onMoveTomorrow,
   onDelete,
   onPriority,
-  onUpdateTiming,
+  onUpdateTask,
 }: Props) {
   const { getCategory } = useApp();
   const { colors } = useTheme();
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [titleDraft, setTitleDraft] = useState('');
+  const [dateDraft, setDateDraft] = useState('');
   const [startDraft, setStartDraft] = useState('');
   const [durationDraft, setDurationDraft] = useState('');
-  const [timeError, setTimeError] = useState<string | null>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const dateOptions = useMemo(() => {
+    const today = toDateKey(new Date());
+    return Array.from({ length: 21 }, (_, i) => addDays(today, i));
+  }, []);
 
   const styles = useThemedStyles((c) => ({
     wrap: { gap: 12 },
@@ -161,15 +174,18 @@ export function ScheduleTimeline({
       fontSize: 14,
       color: c.ink,
     },
-    nudgeBtn: {
+    dateRow: { flexDirection: 'row' as const, flexWrap: 'wrap' as const, gap: 6 },
+    dateChip: {
       borderRadius: radii.pill,
       borderWidth: 1,
       borderColor: c.lineStrong,
       backgroundColor: c.bgElevated,
       paddingHorizontal: 10,
-      paddingVertical: 8,
+      paddingVertical: 6,
     },
-    nudgeText: { fontFamily: fonts.semibold, fontSize: 12, color: c.ink },
+    dateChipActive: { backgroundColor: c.today, borderColor: c.today },
+    dateChipText: { fontFamily: fonts.medium, fontSize: 11, color: c.ink },
+    dateChipTextActive: { color: c.white, fontFamily: fonts.semibold },
     error: { fontFamily: fonts.medium, fontSize: 12, color: c.alert },
     saveBtn: {
       borderRadius: radii.pill,
@@ -183,32 +199,48 @@ export function ScheduleTimeline({
 
   const openEditor = (task: Task) => {
     setEditingId(task.id);
+    setTitleDraft(task.title);
+    setDateDraft(task.date);
     setStartDraft(task.start);
     setDurationDraft(String(task.durationMinutes));
-    setTimeError(null);
+    setEditError(null);
   };
 
-  const saveTiming = (task: Task) => {
-    if (!onUpdateTiming) return;
+  const saveEdit = (task: Task) => {
+    if (!onUpdateTask) return;
     const start = normalizeTimeInput(startDraft);
     const durationMinutes = parseInt(durationDraft, 10);
+    const title = titleDraft.trim();
+    if (!title) {
+      setEditError('Add a task title');
+      return;
+    }
     if (!start) {
-      setTimeError('Use a time like 9:30 or 2:15pm');
+      setEditError('Use a time like 9:30 or 2:15pm');
       return;
     }
     if (!durationMinutes || durationMinutes < 5 || durationMinutes > 12 * 60) {
-      setTimeError('Duration must be 5–720 minutes');
+      setEditError('Duration must be 5–720 minutes');
       return;
     }
-    onUpdateTiming(task.id, { start, durationMinutes });
+    if (!dateDraft) {
+      setEditError('Pick a date');
+      return;
+    }
+    onUpdateTask(task.id, {
+      title,
+      date: dateDraft,
+      start,
+      durationMinutes,
+    });
     setEditingId(null);
-    setTimeError(null);
+    setEditError(null);
   };
 
   const nudgeStart = (task: Task, delta: number) => {
-    if (!onUpdateTiming) return;
+    if (!onUpdateTask) return;
     const next = addMinutesToTime(task.start, delta);
-    onUpdateTiming(task.id, { start: next });
+    onUpdateTask(task.id, { start: next });
     if (editingId === task.id) setStartDraft(next);
   };
 
@@ -220,6 +252,13 @@ export function ScheduleTimeline({
     [tasks]
   );
 
+  const dateChipLabel = (day: string) => {
+    if (isToday(day)) return 'Today';
+    const today = toDateKey(new Date());
+    if (day === addDays(today, 1)) return 'Tomorrow';
+    return formatShortDate(day);
+  };
+
   return (
     <View style={styles.wrap}>
       {sorted.length === 0 ? (
@@ -229,7 +268,7 @@ export function ScheduleTimeline({
         </View>
       ) : (
         <Text style={styles.legend}>
-          Edit time, nudge ±15m, or use Earlier / Later to reshuffle the day.
+          Tap Edit to change title, date, or time — or nudge ±15m and reorder.
         </Text>
       )}
       {sorted.map((task, index) => {
@@ -267,7 +306,8 @@ export function ScheduleTimeline({
                   </View>
                 </View>
                 <Text style={styles.meta}>
-                  {task.start} – {task.end} · {formatDuration(task.durationMinutes)}
+                  {formatShortDate(task.date)} · {task.start} – {task.end} ·{' '}
+                  {formatDuration(task.durationMinutes)}
                 </Text>
                 {onPriority ? (
                   <PriorityTag
@@ -279,7 +319,7 @@ export function ScheduleTimeline({
                 )}
 
                 <View style={styles.actions}>
-                  {onUpdateTiming ? (
+                  {onUpdateTask ? (
                     <>
                       <Pressable
                         accessibilityRole="button"
@@ -299,17 +339,15 @@ export function ScheduleTimeline({
                       </Pressable>
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel={
-                          isEditing ? 'Close time editor' : 'Edit task time'
-                        }
+                        accessibilityLabel={isEditing ? 'Close editor' : 'Edit task'}
                         onPress={() =>
                           isEditing ? setEditingId(null) : openEditor(task)
                         }
                         style={styles.actionChip}
                       >
-                        <Ionicons name="time-outline" size={14} color={colors.ink} />
+                        <Ionicons name="create-outline" size={14} color={colors.ink} />
                         <Text style={styles.actionLabel}>
-                          {isEditing ? 'Close' : 'Edit time'}
+                          {isEditing ? 'Close' : 'Edit'}
                         </Text>
                       </Pressable>
                     </>
@@ -360,17 +398,6 @@ export function ScheduleTimeline({
                       </Text>
                     </Pressable>
                   ) : null}
-                  {onMoveTomorrow ? (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Move task to tomorrow"
-                      onPress={() => onMoveTomorrow(task.id)}
-                      style={styles.actionChip}
-                    >
-                      <Ionicons name="calendar-outline" size={14} color={colors.ink} />
-                      <Text style={styles.actionLabel}>Tomorrow</Text>
-                    </Pressable>
-                  ) : null}
                   {onDelete ? (
                     <Pressable
                       accessibilityRole="button"
@@ -383,8 +410,42 @@ export function ScheduleTimeline({
                   ) : null}
                 </View>
 
-                {isEditing && onUpdateTiming ? (
+                {isEditing && onUpdateTask ? (
                   <View style={styles.editBox}>
+                    <View style={styles.editField}>
+                      <Text style={styles.editLabel}>Title</Text>
+                      <TextInput
+                        value={titleDraft}
+                        onChangeText={setTitleDraft}
+                        placeholder="Task title"
+                        placeholderTextColor={colors.inkMuted}
+                        style={styles.editInput}
+                      />
+                    </View>
+                    <Text style={styles.editLabel}>Date</Text>
+                    <View style={styles.dateRow}>
+                      {dateOptions.map((day) => {
+                        const active = dateDraft === day;
+                        return (
+                          <Pressable
+                            key={day}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Set date ${formatShortDate(day)}`}
+                            onPress={() => setDateDraft(day)}
+                            style={[styles.dateChip, active && styles.dateChipActive]}
+                          >
+                            <Text
+                              style={[
+                                styles.dateChipText,
+                                active && styles.dateChipTextActive,
+                              ]}
+                            >
+                              {dateChipLabel(day)}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
                     <View style={styles.editRow}>
                       <View style={styles.editField}>
                         <Text style={styles.editLabel}>Start</Text>
@@ -409,14 +470,14 @@ export function ScheduleTimeline({
                         />
                       </View>
                     </View>
-                    {timeError ? <Text style={styles.error}>{timeError}</Text> : null}
+                    {editError ? <Text style={styles.error}>{editError}</Text> : null}
                     <Pressable
                       accessibilityRole="button"
-                      accessibilityLabel="Save task timing"
-                      onPress={() => saveTiming(task)}
+                      accessibilityLabel="Save task"
+                      onPress={() => saveEdit(task)}
                       style={styles.saveBtn}
                     >
-                      <Text style={styles.saveText}>Save time</Text>
+                      <Text style={styles.saveText}>Save changes</Text>
                     </Pressable>
                   </View>
                 ) : null}

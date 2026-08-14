@@ -387,10 +387,17 @@ export default function DashboardScreen() {
         tasks={tasksForSelectedDate}
         onDelete={deleteTask}
         onPriority={(id, priority) => updateTask(id, { priority })}
-        onUpdateTiming={(id, patch) => updateTask(id, patch)}
+        onUpdateTask={(id, patch) => {
+          if (patch.date && patch.date !== selectedDate) {
+            moveTaskDate(id, patch.date);
+          }
+          const { date: _date, ...rest } = patch;
+          if (Object.keys(rest).length) {
+            updateTask(id, rest);
+          }
+        }}
         onMoveEarlier={(id) => reorderTask(id, 'up')}
         onMoveLater={(id) => reorderTask(id, 'down')}
-        onMoveTomorrow={(id) => moveTaskDate(id, addDays(selectedDate, 1))}
       />
     </ScrollView>
   );
