@@ -3,6 +3,9 @@ import { defineSecret, defineString } from "firebase-functions/params";
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import * as crypto from "crypto";
+import { promisify } from "util";
+
+const scryptAsync = promisify(crypto.scrypt);
 
 initializeApp();
 const db = getFirestore();
@@ -735,6 +738,388 @@ export const exportGoogle = onRequest(
           failed ? `, ${failed} failed` : ""
         }.`,
       });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ error: message });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Multi-user Kairos accounts (email/password) + cloud workspace
+ // ---------------------------------------------------------------------------
+
+type AuthUserDoc = {
+  email: string;
+  name: string;
+  passwordHash: string;
+  lifestyle: string | null;
+  createdAt?: { toDate?: () => Date };
+  updatedAt?: { toDate?: () => Date };
+};
+
+function normalizeEmail(email: string) {
+  return email.trim().toLowerCase();
+}
+
+async function hashPassword(password: string) {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${derived.toString("hex")}`;
+}
+
+async function verifyPassword(password: string, stored: string) {
+  const [salt, hash] = stored.split(":");
+  if (!salt || !hash) return false;
+  const derived = (await scryptAsync(password, salt, 64)) as Buffer;
+  const expected = Buffer.from(hash, "hex");
+  if (expected.length !== derived.length) return false;
+  return crypto.timingSafeEqual(expected, derived);
+}
+
+function hashToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+async function createSession(uid: string) {
+  const token = crypto.randomBytes(32).toString("hex");
+  const tokenHash = hashToken(token);
+  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 60); // 60 days
+  await db.collection("sessions").doc(tokenHash).set({
+    uid,
+    expiresAt,
+    createdAt: FieldValue.serverTimestamp(),
+  });
+  return { token, expiresAt };
+}
+
+async function resolveSession(token: string) {
+  if (!token) return null;
+  const tokenHash = hashToken(token);
+  const snap = await db.collection("sessions").doc(tokenHash).get();
+  if (!snap.exists) return null;
+  const data = snap.data() as {
+    uid?: string;
+    expiresAt?: Date | { toDate: () => Date };
+  };
+  if (!data.uid) return null;
+  const expires =
+    data.expiresAt instanceof Date
+      ? data.expiresAt
+      : data.expiresAt && typeof data.expiresAt.toDate === "function"
+        ? data.expiresAt.toDate()
+        : null;
+  if (expires && expires.getTime() < Date.now()) {
+    await snap.ref.delete();
+    return null;
+  }
+  return { uid: data.uid, tokenHash };
+}
+
+function publicUser(uid: string, data: AuthUserDoc) {
+  return {
+    uid,
+    email: data.email,
+    name: data.name,
+    lifestyle: (data.lifestyle as AuthUserDoc["lifestyle"]) || null,
+  };
+}
+
+/**
+ * POST { email, password, name }
+ */
+export const authRegister = onRequest(
+  { cors: true, invoker: "public" },
+  async (req, res) => {
+    try {
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+      if (req.method !== "POST") {
+        res.status(405).json({ error: "POST only" });
+        return;
+      }
+      const email = normalizeEmail(String(req.body?.email || ""));
+      const password = String(req.body?.password || "");
+      const name = String(req.body?.name || "").trim();
+      if (!name) {
+        res.status(400).json({ error: "Enter your name to create an account." });
+        return;
+      }
+      if (!email || !email.includes("@")) {
+        res.status(400).json({ error: "Enter a valid email address." });
+        return;
+      }
+      if (password.length < 4) {
+        res.status(400).json({ error: "Password needs at least 4 characters." });
+        return;
+      }
+
+      const existing = await db
+        .collection("accounts")
+        .where("email", "==", email)
+        .limit(1)
+        .get();
+      if (!existing.empty) {
+        res.status(409).json({
+          error: "An account with this email already exists — sign in instead.",
+        });
+        return;
+      }
+
+      const passwordHash = await hashPassword(password);
+      const ref = db.collection("accounts").doc();
+      const doc: AuthUserDoc = {
+        email,
+        name,
+        passwordHash,
+        lifestyle: null,
+      };
+      await ref.set({
+        ...doc,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      // Align calendar connection docs under the same uid
+      await db.collection("users").doc(ref.id).set(
+        {
+          email,
+          name,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      const session = await createSession(ref.id);
+      res.json({
+        token: session.token,
+        user: publicUser(ref.id, doc),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ error: message });
+    }
+  }
+);
+
+/**
+ * POST { email, password }
+ */
+export const authLogin = onRequest(
+  { cors: true, invoker: "public" },
+  async (req, res) => {
+    try {
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+      if (req.method !== "POST") {
+        res.status(405).json({ error: "POST only" });
+        return;
+      }
+      const email = normalizeEmail(String(req.body?.email || ""));
+      const password = String(req.body?.password || "");
+      if (!email || !email.includes("@")) {
+        res.status(400).json({ error: "Enter a valid email address." });
+        return;
+      }
+      if (!password) {
+        res.status(400).json({ error: "Enter your password." });
+        return;
+      }
+
+      const snap = await db
+        .collection("accounts")
+        .where("email", "==", email)
+        .limit(1)
+        .get();
+      if (snap.empty) {
+        res.status(404).json({
+          error: "No account found for this email — create one or continue as guest.",
+        });
+        return;
+      }
+      const docSnap = snap.docs[0];
+      const data = docSnap.data() as AuthUserDoc;
+      const ok = await verifyPassword(password, data.passwordHash);
+      if (!ok) {
+        res.status(401).json({ error: "Incorrect password." });
+        return;
+      }
+
+      await db.collection("users").doc(docSnap.id).set(
+        {
+          email: data.email,
+          name: data.name,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      const session = await createSession(docSnap.id);
+      res.json({
+        token: session.token,
+        user: publicUser(docSnap.id, data),
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ error: message });
+    }
+  }
+);
+
+/**
+ * POST { token }
+ */
+export const authLogout = onRequest(
+  { cors: true, invoker: "public" },
+  async (req, res) => {
+    try {
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+      const token = String(req.body?.token || req.query.token || "");
+      const session = await resolveSession(token);
+      if (session) {
+        await db.collection("sessions").doc(session.tokenHash).delete();
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ error: message });
+    }
+  }
+);
+
+/**
+ * GET ?token=...  or POST { token, name?, lifestyle? } to update profile
+ */
+export const authMe = onRequest(
+  { cors: true, invoker: "public" },
+  async (req, res) => {
+    try {
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+      const token = String(
+        req.method === "POST" ? req.body?.token || "" : req.query.token || ""
+      );
+      const session = await resolveSession(token);
+      if (!session) {
+        res.status(401).json({ error: "Not signed in." });
+        return;
+      }
+      const ref = db.collection("accounts").doc(session.uid);
+      const snap = await ref.get();
+      if (!snap.exists) {
+        res.status(401).json({ error: "Account missing." });
+        return;
+      }
+      let data = snap.data() as AuthUserDoc;
+
+      if (req.method === "POST") {
+        const patch: Partial<AuthUserDoc> = {};
+        if (typeof req.body?.name === "string" && req.body.name.trim()) {
+          patch.name = String(req.body.name).trim();
+        }
+        if (req.body?.lifestyle !== undefined) {
+          patch.lifestyle =
+            req.body.lifestyle === null || req.body.lifestyle === ""
+              ? null
+              : String(req.body.lifestyle);
+        }
+        if (Object.keys(patch).length) {
+          await ref.set(
+            { ...patch, updatedAt: FieldValue.serverTimestamp() },
+            { merge: true }
+          );
+          data = { ...data, ...patch };
+        }
+      }
+
+      res.json({ user: publicUser(session.uid, data) });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ error: message });
+    }
+  }
+);
+
+/**
+ * GET ?token=...
+ */
+export const getUserWorkspace = onRequest(
+  { cors: true, invoker: "public" },
+  async (req, res) => {
+    try {
+      const token = String(req.query.token || "");
+      const session = await resolveSession(token);
+      if (!session) {
+        res.status(401).json({ error: "Not signed in." });
+        return;
+      }
+      const snap = await db
+        .collection("users")
+        .doc(session.uid)
+        .collection("data")
+        .doc("workspace")
+        .get();
+      if (!snap.exists) {
+        res.json({ workspace: null });
+        return;
+      }
+      res.json({ workspace: snap.data() });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ error: message });
+    }
+  }
+);
+
+/**
+ * POST { token, workspace }
+ */
+export const saveUserWorkspace = onRequest(
+  { cors: true, invoker: "public" },
+  async (req, res) => {
+    try {
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+      if (req.method !== "POST") {
+        res.status(405).json({ error: "POST only" });
+        return;
+      }
+      const token = String(req.body?.token || "");
+      const workspace = req.body?.workspace;
+      const session = await resolveSession(token);
+      if (!session) {
+        res.status(401).json({ error: "Not signed in." });
+        return;
+      }
+      if (!workspace || typeof workspace !== "object") {
+        res.status(400).json({ error: "Missing workspace payload." });
+        return;
+      }
+      await db
+        .collection("users")
+        .doc(session.uid)
+        .collection("data")
+        .doc("workspace")
+        .set(
+          {
+            ...workspace,
+            updatedAt: new Date().toISOString(),
+            savedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      res.json({ ok: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       res.status(500).json({ error: message });

@@ -22,7 +22,19 @@ import {
   saveConnections,
   SyncTaskPatch,
 } from '@/lib/calendar-sync';
-import { importGoogleFromCloud, exportGoogleToCloud } from '@/lib/cloud-calendar';
+import {
+  cloudFetchWorkspace,
+  cloudLogin,
+  cloudLogout,
+  cloudMe,
+  cloudRegister,
+  cloudSaveWorkspace,
+  cloudUpdateProfile,
+  isCloudAuthConfigured,
+  loadCloudAuthSession,
+  saveCloudAuthSession,
+} from '@/lib/cloud-auth';
+import { importGoogleFromCloud, exportGoogleToCloud, setCloudUid } from '@/lib/cloud-calendar';
 import { ImportedCalendarEvent } from '@/lib/ics';
 import {
   emptyWorkspace,
@@ -31,6 +43,7 @@ import {
   saveSession,
   saveWorkspace,
   workspaceKeyForUser,
+  type UserWorkspace,
 } from '@/lib/user-workspace';
 import {
   addDays,
@@ -76,8 +89,8 @@ type AppContextValue = {
     email: string;
     password: string;
     name: string;
-  }) => string | null;
-  signIn: (input: { email: string; password: string }) => string | null;
+  }) => Promise<string | null>;
+  signIn: (input: { email: string; password: string }) => Promise<string | null>;
   signInAsGuest: () => void;
   updateProfile: (
     patch: Partial<Pick<UserProfile, 'name' | 'email' | 'lifestyle'>>
@@ -328,40 +341,105 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // Restore last session + that user's saved schedule/onboarding
   useEffect(() => {
-    const session = loadSession();
-    if (!session) {
-      setWorkspaceReady(true);
-      return;
-    }
-    const key = workspaceKeyForUser(session);
-    const stored = loadWorkspace(key);
-    const account = !session.isGuest
-      ? findAccount(session.email, loadAccounts())
-      : null;
-    if (!session.isGuest && !account) {
-      saveSession(null);
-      setWorkspaceReady(true);
-      return;
-    }
-    const ws =
-      stored ||
-      emptyWorkspace(
-        DEFAULT_CATEGORIES,
-        session.isGuest ? initialTasks : []
-      );
-    // Older accounts may have finished onboarding before persistence existed
-    if (!stored && account?.lifestyle) {
-      ws.onboarded = true;
-    }
-    setUser({
-      id: session.isGuest ? `guest-${session.email}` : `u-${account!.email}`,
-      name: session.name || account?.name || 'Guest',
-      email: session.email,
-      isGuest: session.isGuest,
-      lifestyle: account?.lifestyle ?? null,
-    });
-    applyWorkspace(ws);
-    setWorkspaceReady(true);
+    let cancelled = false;
+
+    const restore = async () => {
+      // Prefer cloud session (works across browsers once functions are deployed)
+      if (isCloudAuthConfigured()) {
+        try {
+          const cloud = await cloudMe();
+          if (cancelled) return;
+          if (cloud) {
+            setCloudUid(cloud.user.uid);
+            let ws: UserWorkspace | null = null;
+            try {
+              ws = await cloudFetchWorkspace(cloud.token);
+            } catch {
+              ws = null;
+            }
+            if (!ws) {
+              ws =
+                loadWorkspace(cloud.user.uid) ||
+                loadWorkspace(cloud.user.email) ||
+                emptyWorkspace(DEFAULT_CATEGORIES, []);
+            }
+            if (cloud.user.lifestyle && !ws.onboarded) {
+              ws.onboarded = true;
+            }
+            setUser({
+              id: cloud.user.uid,
+              name: cloud.user.name,
+              email: cloud.user.email,
+              isGuest: false,
+              lifestyle: (cloud.user.lifestyle as Lifestyle | null) ?? null,
+            });
+            applyWorkspace(ws);
+            saveSession({
+              email: cloud.user.email,
+              isGuest: false,
+              name: cloud.user.name,
+              uid: cloud.user.uid,
+              authToken: cloud.token,
+            });
+            saveWorkspace(cloud.user.uid, ws);
+            setWorkspaceReady(true);
+            return;
+          }
+        } catch {
+          // fall through to local session
+        }
+      }
+
+      const session = loadSession();
+      if (!session) {
+        if (!cancelled) setWorkspaceReady(true);
+        return;
+      }
+      const key = workspaceKeyForUser({
+        email: session.email,
+        isGuest: session.isGuest,
+        id: session.uid,
+      });
+      const stored = loadWorkspace(key);
+      const account = !session.isGuest
+        ? findAccount(session.email, loadAccounts())
+        : null;
+      if (!session.isGuest && !account && !session.uid) {
+        saveSession(null);
+        if (!cancelled) setWorkspaceReady(true);
+        return;
+      }
+      const ws =
+        stored ||
+        emptyWorkspace(
+          DEFAULT_CATEGORIES,
+          session.isGuest ? initialTasks : []
+        );
+      if (!stored && account?.lifestyle) {
+        ws.onboarded = true;
+      }
+      if (session.uid) setCloudUid(session.uid);
+      if (!cancelled) {
+        setUser({
+          id: session.uid
+            ? session.uid
+            : session.isGuest
+              ? `guest-${session.email}`
+              : `u-${account!.email}`,
+          name: session.name || account?.name || 'Guest',
+          email: session.email,
+          isGuest: session.isGuest,
+          lifestyle: account?.lifestyle ?? null,
+        });
+        applyWorkspace(ws);
+        setWorkspaceReady(true);
+      }
+    };
+
+    restore();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -376,7 +454,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!workspaceReady || !user) return;
     const key = workspaceKeyForUser(user);
-    saveWorkspace(key, {
+    const payload: UserWorkspace = {
       version: 1,
       onboarded,
       chronotype,
@@ -385,7 +463,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       categories,
       calendarConnections,
       updatedAt: new Date().toISOString(),
-    });
+    };
+    saveWorkspace(key, payload);
+
+    const cloud = loadCloudAuthSession();
+    if (cloud?.token && !user.isGuest) {
+      void cloudSaveWorkspace(cloud.token, payload).catch(() => {
+        // keep local copy if cloud save fails
+      });
+    }
   }, [
     workspaceReady,
     user,
@@ -908,7 +994,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     () => ({
       user,
       isAuthenticated: !!user,
-      signUp: ({ email, password, name }) => {
+      signUp: async ({ email, password, name }) => {
         const trimmedEmail = email.trim().toLowerCase();
         const trimmedName = name.trim();
         if (!trimmedName) {
@@ -920,6 +1006,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!password || password.length < 4) {
           return 'Password needs at least 4 characters';
         }
+
+        if (isCloudAuthConfigured()) {
+          try {
+            const session = await cloudRegister({
+              email: trimmedEmail,
+              password,
+              name: trimmedName,
+            });
+            setCloudUid(session.user.uid);
+            const fresh = emptyWorkspace(DEFAULT_CATEGORIES, []);
+            applyWorkspace(fresh);
+            setUser({
+              id: session.user.uid,
+              name: session.user.name,
+              email: session.user.email,
+              isGuest: false,
+              lifestyle: null,
+            });
+            saveSession({
+              email: session.user.email,
+              isGuest: false,
+              name: session.user.name,
+              uid: session.user.uid,
+              authToken: session.token,
+            });
+            saveWorkspace(session.user.uid, fresh);
+            void cloudSaveWorkspace(session.token, fresh).catch(() => undefined);
+            // Mirror locally so offline sign-in still works on this device
+            if (!findAccount(trimmedEmail, loadAccounts())) {
+              setAccounts((prev) => [
+                ...prev,
+                {
+                  email: trimmedEmail,
+                  password,
+                  name: trimmedName,
+                  lifestyle: null,
+                },
+              ]);
+            }
+            return null;
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Sign up failed';
+            // If backend isn't reachable yet, fall back to local accounts
+            if (
+              /Failed to fetch|NetworkError|Network request failed|UNAVAILABLE|ECONNREFUSED/i.test(
+                message
+              )
+            ) {
+              // continue to local fallback below
+            } else {
+              return message;
+            }
+          }
+        }
+
         if (findAccount(trimmedEmail, accounts)) {
           return 'An account with this email already exists — sign in instead';
         }
@@ -947,7 +1089,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         saveWorkspace(workspaceKeyForUser({ email: trimmedEmail }), fresh);
         return null;
       },
-      signIn: ({ email, password }) => {
+      signIn: async ({ email, password }) => {
         const trimmedEmail = email.trim().toLowerCase();
         if (!trimmedEmail || !trimmedEmail.includes('@')) {
           return 'Enter a valid email address';
@@ -955,6 +1097,89 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (!password) {
           return 'Enter your password';
         }
+
+        if (isCloudAuthConfigured()) {
+          try {
+            const session = await cloudLogin({
+              email: trimmedEmail,
+              password,
+            });
+            setCloudUid(session.user.uid);
+            let ws: UserWorkspace | null = null;
+            try {
+              ws = await cloudFetchWorkspace(session.token);
+            } catch {
+              ws = null;
+            }
+            if (!ws) {
+              ws =
+                loadWorkspace(session.user.uid) ||
+                loadWorkspace(session.user.email) ||
+                emptyWorkspace(DEFAULT_CATEGORIES, []);
+            }
+            if (session.user.lifestyle && !ws.onboarded) {
+              ws.onboarded = true;
+            }
+            applyWorkspace(ws);
+            setUser({
+              id: session.user.uid,
+              name: session.user.name,
+              email: session.user.email,
+              isGuest: false,
+              lifestyle: (session.user.lifestyle as Lifestyle | null) ?? null,
+            });
+            saveSession({
+              email: session.user.email,
+              isGuest: false,
+              name: session.user.name,
+              uid: session.user.uid,
+              authToken: session.token,
+            });
+            saveWorkspace(session.user.uid, ws);
+            // Keep a local mirror for this browser
+            setAccounts((prev) => {
+              const existing = findAccount(trimmedEmail, prev);
+              if (existing) {
+                return prev.map((a) =>
+                  a.email === trimmedEmail
+                    ? {
+                        ...a,
+                        password,
+                        name: session.user.name,
+                        lifestyle:
+                          (session.user.lifestyle as Lifestyle | null) ??
+                          a.lifestyle,
+                      }
+                    : a
+                );
+              }
+              return [
+                ...prev,
+                {
+                  email: trimmedEmail,
+                  password,
+                  name: session.user.name,
+                  lifestyle:
+                    (session.user.lifestyle as Lifestyle | null) ?? null,
+                },
+              ];
+            });
+            return null;
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Sign in failed';
+            if (
+              /Failed to fetch|NetworkError|Network request failed|UNAVAILABLE|ECONNREFUSED/i.test(
+                message
+              )
+            ) {
+              // continue to local fallback below
+            } else {
+              return message;
+            }
+          }
+        }
+
         const account = findAccount(trimmedEmail, accounts);
         if (!account) {
           return 'No account found for this email — create one or continue as guest';
@@ -964,9 +1189,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
         const key = workspaceKeyForUser({ email: account.email });
         const stored = loadWorkspace(key);
-        const ws =
-          stored ||
-          emptyWorkspace(DEFAULT_CATEGORIES, []);
+        const ws = stored || emptyWorkspace(DEFAULT_CATEGORIES, []);
         if (!stored && account.lifestyle) {
           ws.onboarded = true;
         }
@@ -987,6 +1210,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return null;
       },
       signInAsGuest: () => {
+        saveCloudAuthSession(null);
         const key = workspaceKeyForUser({ email: 'guest@kairos.app', isGuest: true });
         const stored = loadWorkspace(key);
         const ws = stored || emptyWorkspace(DEFAULT_CATEGORIES, initialTasks);
@@ -1031,17 +1255,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               )
             );
           }
+          const cloud = loadCloudAuthSession();
           saveSession({
             email: next.email,
             isGuest: next.isGuest,
             name: next.name,
+            uid: cloud?.user.uid || (prev.id.startsWith('u-') ? undefined : prev.id),
+            authToken: cloud?.token,
           });
+          if (cloud?.token && !next.isGuest) {
+            void cloudUpdateProfile(cloud.token, {
+              name: next.name,
+              lifestyle: next.lifestyle,
+            }).catch(() => undefined);
+          }
           return next;
         });
       },
       signOut: () => {
         if (user) {
-          saveWorkspace(workspaceKeyForUser(user), {
+          const payload: UserWorkspace = {
             version: 1,
             onboarded,
             chronotype,
@@ -1050,8 +1283,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             categories,
             calendarConnections,
             updatedAt: new Date().toISOString(),
-          });
+          };
+          saveWorkspace(workspaceKeyForUser(user), payload);
+          const cloud = loadCloudAuthSession();
+          if (cloud?.token && !user.isGuest) {
+            void cloudSaveWorkspace(cloud.token, payload).catch(() => undefined);
+          }
         }
+        void cloudLogout();
         saveSession(null);
         setUser(null);
         resetWorkspaceMemory();

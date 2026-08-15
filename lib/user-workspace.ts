@@ -23,6 +23,10 @@ export type SessionSnapshot = {
   email: string;
   isGuest: boolean;
   name: string;
+  /** Cloud account id when signed in via Kairos backend */
+  uid?: string;
+  /** Opaque session token for cloud auth APIs */
+  authToken?: string;
 };
 
 const WORKSPACE_PREFIX = 'kairos.workspace.v1.';
@@ -38,6 +42,9 @@ export function workspaceKeyForUser(input: {
   id?: string;
 }) {
   if (input.isGuest) return 'guest';
+  if (input.id && !input.id.startsWith('u-') && !input.id.startsWith('guest-')) {
+    return input.id;
+  }
   return input.email.trim().toLowerCase() || 'unknown';
 }
 

@@ -8,6 +8,7 @@ import type { SyncTaskPatch } from '@/lib/calendar-sync/types';
 import { toDateKey } from '@/lib/schedule';
 
 const CLOUD_UID_KEY = 'kairos.cloudUid';
+const CLOUD_UID_BY_USER_PREFIX = 'kairos.cloudUid.user.';
 
 function readEnv(name: string) {
   const env = (typeof process !== 'undefined' ? process.env : {}) as Record<
@@ -17,8 +18,29 @@ function readEnv(name: string) {
   return (env[name] || '').trim();
 }
 
-/** Stable per-device id used as Firestore users/{uid} for calendar connections. */
+function activeUserUid(): string | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const raw = localStorage.getItem('kairos.cloudAuth.v1');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { user?: { uid?: string } };
+    return parsed?.user?.uid || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Per signed-in account id used as Firestore users/{uid} for calendar + auth. */
 export function getCloudUid(): string {
+  const accountUid = activeUserUid();
+  if (accountUid) {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CLOUD_UID_KEY, accountUid);
+      localStorage.setItem(CLOUD_UID_BY_USER_PREFIX + accountUid, accountUid);
+    }
+    return accountUid;
+  }
+
   if (typeof localStorage !== 'undefined') {
     const existing = localStorage.getItem(CLOUD_UID_KEY);
     if (existing) return existing;

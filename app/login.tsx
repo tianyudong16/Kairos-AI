@@ -28,6 +28,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
+  const [busy, setBusy] = useState(false);
+
   useEffect(() => {
     if (!isAuthenticated) return;
     router.replace(onboarded ? '/(tabs)' : '/onboarding');
@@ -150,17 +152,25 @@ export default function LoginScreen() {
     router.replace(onboarded ? '/(tabs)' : '/onboarding');
   };
 
-  const submit = () => {
-    const result =
-      mode === 'signup'
-        ? signUp({ email, password, name })
-        : signIn({ email, password });
-    if (result) {
-      setError(result);
-      return;
-    }
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true);
     setError(null);
-    goNext();
+    try {
+      const result =
+        mode === 'signup'
+          ? await signUp({ email, password, name })
+          : await signIn({ email, password });
+      if (result) {
+        setError(result);
+        return;
+      }
+      goNext();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const guest = () => {
@@ -197,7 +207,8 @@ export default function LoginScreen() {
               {mode === 'signin' ? 'Welcome back' : 'Create your account'}
             </Text>
             <Text style={styles.subhead}>
-              Sign up or sign in to keep your schedule. Prefer not to? Continue as guest.
+              Create an account so your schedule follows you across devices. Prefer
+              not to? Continue as guest.
             </Text>
           </Animated.View>
 
@@ -280,14 +291,22 @@ export default function LoginScreen() {
             {error ? <Text style={styles.error}>{error}</Text> : null}
 
             <PrimaryButton
-              label={mode === 'signin' ? 'Sign in' : 'Create account'}
+              label={
+                busy
+                  ? mode === 'signin'
+                    ? 'Signing in…'
+                    : 'Creating…'
+                  : mode === 'signin'
+                    ? 'Sign in'
+                    : 'Create account'
+              }
               onPress={submit}
             />
 
             <Text style={styles.hint}>
               {mode === 'signin'
-                ? 'Sign in only works with an account you already created on this device.'
-                : 'Creating an account saves your profile on this device for later sign-in.'}
+                ? 'Sign in with the same email/password on any device — your schedule stays with your account.'
+                : 'Your account is saved in Kairos cloud so you can sign in from another browser or phone.'}
             </Text>
 
             <View style={styles.dividerRow}>

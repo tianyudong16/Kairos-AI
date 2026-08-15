@@ -45,6 +45,23 @@ npx firebase-tools deploy --only hosting
 
 Send them the URL Firebase prints (e.g. `https://kairos-ai-13e53.web.app`).
 
+## Multi-user login (required for other emails)
+
+Accounts are stored in Firebase (not only in one browser). Deploy the auth functions once:
+
+```bash
+cd functions
+npm install
+cd ..
+npx firebase-tools deploy --only functions
+```
+
+Then any email can **Sign up** / **Sign in**, and schedules sync to that account.
+
+### Google Calendar with other Gmail accounts
+
+If Google Connect says the app is blocked / not verified for another email, open [Google Cloud Console](https://console.cloud.google.com/) → your OAuth client project → **OAuth consent screen** → **Test users** → add their Gmail. (While the app is in Testing mode, only listed emails can connect Google Calendar.)
+
 ## App Store / Play Store path
 
 This project is Expo-ready. When you want store builds:
