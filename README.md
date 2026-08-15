@@ -10,6 +10,15 @@ Mobile-first scheduling companion that aligns tasks with your energy peaks. Buil
 4. **Analytics** — focus score + circadian curve  
 5. **AI Coach** — co-pilot chat
 
+## Get the latest code
+
+The real app lives on **`main`**. After cloning (or anytime you want updates):
+
+```bash
+git checkout main
+git pull origin main
+```
+
 ## Run in the browser
 
 ```bash
@@ -26,6 +35,15 @@ npm start
 ```
 
 Scan the QR code with Expo Go (Android) or the Camera app (iOS).
+
+## Share a hosted link (no Node for friends)
+
+```bash
+npx expo export --platform web
+npx firebase-tools deploy --only hosting
+```
+
+Send them the URL Firebase prints (e.g. `https://kairos-ai-13e53.web.app`).
 
 ## App Store / Play Store path
 
