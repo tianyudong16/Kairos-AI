@@ -73,6 +73,20 @@ EXPO_PUBLIC_APP_URL=https://kairos-ai-13e53.web.app
 
 If Google Connect says the app is blocked / not verified for another email, open [Google Cloud Console](https://console.cloud.google.com/) → your OAuth client project → **OAuth consent screen** → **Test users** → add their Gmail. (While the app is in Testing mode, only listed emails can connect Google Calendar.)
 
+## AI Coach (real LLM)
+
+You do **not** need to build your own agent. The coach calls OpenAI through a Cloud Function (`coachChat`) with the user’s schedule as context, then applies structured actions in the app.
+
+```bash
+# Paste your OpenAI API key when prompted
+npx firebase-tools functions:secrets:set OPENAI_API_KEY
+
+# Redeploy functions (includes coachChat)
+npx firebase-tools deploy --only functions
+```
+
+Without the secret, free-form chat falls back to the older keyword coach (action cards still work).
+
 ## App Store / Play Store path
 
 This project is Expo-ready. When you want store builds:
