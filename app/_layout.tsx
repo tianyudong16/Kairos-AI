@@ -8,6 +8,7 @@ import {
   Fraunces_600SemiBold,
   Fraunces_600SemiBold_Italic,
 } from '@expo-google-fonts/fraunces';
+import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -28,6 +29,8 @@ function ThemedStatusBar() {
 }
 
 export default function RootLayout() {
+  // Preload brand fonts + Ionicons so icons don't render as □ on web/static hosts.
+  // Ionicons is also required from assets/ so Metro always emits the .ttf into dist/.
   const [loaded, error] = useFonts({
     DMSans_400Regular,
     DMSans_500Medium,
@@ -35,6 +38,8 @@ export default function RootLayout() {
     DMSans_700Bold,
     Fraunces_600SemiBold,
     Fraunces_600SemiBold_Italic,
+    ...Ionicons.font,
+    ionicons: require('../assets/fonts/Ionicons.ttf'),
   });
 
   useEffect(() => {
