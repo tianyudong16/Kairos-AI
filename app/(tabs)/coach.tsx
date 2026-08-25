@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -33,6 +33,29 @@ export default function CoachScreen() {
       paddingVertical: 5,
     },
     metaText: { fontFamily: fonts.semibold, fontSize: 11, color: c.ink },
+    billingBanner: {
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: c.coach,
+      backgroundColor: c.coachSoft,
+      padding: 12,
+      flexDirection: 'row' as const,
+      alignItems: 'center' as const,
+      gap: 10,
+      marginBottom: 8,
+    },
+    billingBannerText: {
+      flex: 1,
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: c.ink,
+      lineHeight: 18,
+    },
+    billingLink: {
+      fontFamily: fonts.semibold,
+      fontSize: 13,
+      color: c.coach,
+    },
     actionRow: { gap: 10, paddingBottom: 12 },
     actionCard: {
       width: 150,
@@ -146,16 +169,28 @@ export default function CoachScreen() {
     },
   }));
   const {
+    user,
     coachMessages,
     sendCoachMessage,
     lastCoachChanges,
     coachBusy,
+    coachCredits,
+    creditsPerCoachMessage,
+    refreshCoachBilling,
     capacitySummary,
     sleep,
     peakWindowLabel,
     tasksForSelectedDate,
   } = useApp();
   const [draft, setDraft] = useState('');
+
+  useEffect(() => {
+    void refreshCoachBilling();
+  }, [refreshCoachBilling]);
+
+  const showGuestBilling = user?.isGuest ?? true;
+  const showLowCredits =
+    !showGuestBilling && coachCredits !== null && coachCredits < creditsPerCoachMessage;
 
   const actionCards = useMemo(
     () => [
@@ -225,10 +260,20 @@ export default function CoachScreen() {
           <Text style={styles.title}>AI Coach</Text>
         </View>
         <Text style={styles.subtitle}>
-          Live Gemini chat about your day — not preset scripts. Action cards are
-          shortcuts.
+          Live Gemini chat about your day — uses coach credits when signed in.
+          Action cards are free shortcuts.
         </Text>
         <View style={styles.metaRow}>
+          {!showGuestBilling && coachCredits !== null ? (
+            <Pressable
+              onPress={() => router.push('/coach-billing' as any)}
+              style={[styles.metaChip, { backgroundColor: colors.coachSoft }]}
+            >
+              <Text style={styles.metaText}>
+                {coachCredits} credit{coachCredits === 1 ? '' : 's'}
+              </Text>
+            </Pressable>
+          ) : null}
           <View style={[styles.metaChip, { backgroundColor: colors.todaySoft }]}>
             <Text style={styles.metaText}>{peakWindowLabel}</Text>
           </View>
@@ -244,6 +289,32 @@ export default function CoachScreen() {
           </View>
         </View>
       </View>
+
+      {showGuestBilling ? (
+        <Pressable
+          style={styles.billingBanner}
+          onPress={() => router.push('/login' as any)}
+        >
+          <Ionicons name="person-circle-outline" size={20} color={colors.coach} />
+          <Text style={styles.billingBannerText}>
+            Sign in to use live AI chat. Action cards still edit your schedule for free.
+          </Text>
+          <Text style={styles.billingLink}>Sign in</Text>
+        </Pressable>
+      ) : null}
+
+      {showLowCredits ? (
+        <Pressable
+          style={styles.billingBanner}
+          onPress={() => router.push('/coach-billing' as any)}
+        >
+          <Ionicons name="wallet-outline" size={20} color={colors.coach} />
+          <Text style={styles.billingBannerText}>
+            You’re out of coach credits. Buy a pack to keep chatting with AI.
+          </Text>
+          <Text style={styles.billingLink}>Buy</Text>
+        </Pressable>
+      ) : null}
 
       <ScrollView
         horizontal

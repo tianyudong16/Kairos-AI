@@ -400,6 +400,17 @@ export default function ProfileScreen() {
 
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Coach credits and billing"
+          onPress={() => router.push('/coach-billing' as any)}
+          style={styles.linkRow}
+        >
+          <Ionicons name="wallet-outline" size={18} color={colors.ink} />
+          <Text style={styles.linkText}>AI Coach credits & billing</Text>
+          <Ionicons name="chevron-forward" size={18} color={colors.inkMuted} />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
           accessibilityLabel="Import and export calendars"
           onPress={() => router.push('/calendar-sync' as any)}
           style={styles.linkRow}

@@ -5,6 +5,18 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import * as crypto from "crypto";
 import { promisify } from "util";
 
+import {
+  deductCoachCredit,
+  ensureBillingAccount,
+  resolveSession as resolveBillingSession,
+} from "./billing";
+
+export {
+  getBillingAccount,
+  createCheckoutSession,
+  stripeWebhook,
+} from "./billing";
+
 const scryptAsync = promisify(crypto.scrypt);
 
 initializeApp();
@@ -950,6 +962,8 @@ export const authRegister = onRequest(
         { merge: true }
       );
 
+      await ensureBillingAccount(ref.id, true);
+
       const session = await createSession(ref.id);
       res.json({
         token: session.token,
@@ -1362,12 +1376,40 @@ export const coachChat = onRequest(
         return;
       }
 
-      if (token) {
-        const session = await resolveSession(token);
-        if (!session) {
-          res.status(401).json({ error: "Session expired — sign in again." });
+      if (!token) {
+        res.status(401).json({
+          error: "Sign in to use the live AI coach.",
+          code: "AUTH_REQUIRED",
+        });
+        return;
+      }
+
+      const session = await resolveBillingSession(token);
+      if (!session) {
+        res.status(401).json({
+          error: "Session expired — sign in again.",
+          code: "AUTH_REQUIRED",
+        });
+        return;
+      }
+
+      let creditsRemaining = 0;
+      try {
+        const billing = await deductCoachCredit(session.uid, message);
+        creditsRemaining = billing.creditsRemaining;
+      } catch (err) {
+        const code =
+          err instanceof Error && "code" in err
+            ? String((err as Error & { code?: string }).code)
+            : "";
+        if (code === "NO_CREDITS") {
+          res.status(402).json({
+            error: "You’re out of coach credits. Buy a pack to keep chatting.",
+            code: "NO_CREDITS",
+          });
           return;
         }
+        throw err;
       }
 
       const geminiKey = readSecret(GEMINI_API_KEY);
@@ -1391,6 +1433,7 @@ export const coachChat = onRequest(
         actions: parsed.actions,
         source: "llm",
         provider: "gemini",
+        creditsRemaining,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
