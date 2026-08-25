@@ -34,6 +34,11 @@ import {
   loadCloudAuthSession,
   saveCloudAuthSession,
 } from '@/lib/cloud-auth';
+import {
+  cloudCoachChat,
+  isCloudCoachConfigured,
+  type CoachLlmAction,
+} from '@/lib/cloud-coach';
 import { importGoogleFromCloud, exportGoogleToCloud, setCloudUid } from '@/lib/cloud-calendar';
 import { isHostedWebApp } from '@/lib/app-url';
 import { ImportedCalendarEvent } from '@/lib/ics';
@@ -157,7 +162,8 @@ type AppContextValue = {
   }>;
   coachMessages: CoachMessage[];
   lastCoachChanges: CoachChange[];
-  sendCoachMessage: (text: string) => void;
+  coachBusy: boolean;
+  sendCoachMessage: (text: string) => Promise<void>;
   applyCoachAction: (action: string) => string;
   peakWindowLabel: string;
   capacitySummary: { focusHours: number; capacityHours: number; overflowHours: number };
@@ -552,10 +558,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     {
       id: 'c1',
       role: 'ai',
-      text: 'I can reshape your day with concrete actions — protect peak hours, move overflow, insert breaks, split long blocks, or tune sleep. Tap an action card above.',
+      text: 'Ask me anything about your day — I’ll use real AI plus your schedule. Or tap an action card above for a quick tweak.',
     },
   ]);
   const [lastCoachChanges, setLastCoachChanges] = useState<CoachChange[]>([]);
+  const [coachBusy, setCoachBusy] = useState(false);
 
   useEffect(() => {
     const builtInColors: Record<string, { color: string; soft: string }> = {
@@ -989,6 +996,222 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     pushChange('Fallback optimize', summary);
     setLastCoachChanges(changes);
     return `${summary} Tip: try “insert break”, “split longest task”, “clear evening”, or “boost priority”.`;
+  };
+
+  const findTaskByTitle = (title: string | undefined, date = selectedDate) => {
+    if (!title) return null;
+    const needle = title.toLowerCase().trim();
+    const day = tasks.filter((t) => t.date === date);
+    return (
+      day.find((t) => t.title.toLowerCase() === needle) ||
+      day.find((t) => t.title.toLowerCase().includes(needle)) ||
+      tasks.find((t) => t.title.toLowerCase() === needle) ||
+      tasks.find((t) => t.title.toLowerCase().includes(needle)) ||
+      null
+    );
+  };
+
+  /** Apply structured actions returned by the cloud LLM coach. */
+  const applyCoachLlmActions = (actions: CoachLlmAction[]) => {
+    const changes: CoachChange[] = [];
+    const notes: string[] = [];
+    const pushChange = (label: string, detail: string) => {
+      changes.push({ id: `ch-${Date.now()}-${changes.length}`, label, detail });
+    };
+
+    for (const action of actions) {
+      if (!action || action.type === 'none') continue;
+
+      if (action.type === 'optimize') {
+        notes.push(optimizeSchedule(selectedDate));
+        pushChange('Schedule optimized', notes[notes.length - 1]);
+        continue;
+      }
+      if (action.type === 'protect_peak') {
+        notes.push(applyCoachAction('protect peak window'));
+        continue;
+      }
+      if (action.type === 'insert_break') {
+        notes.push(applyCoachAction('insert recovery break'));
+        continue;
+      }
+      if (action.type === 'split_longest') {
+        notes.push(applyCoachAction('split longest task'));
+        continue;
+      }
+      if (action.type === 'clear_evening') {
+        notes.push(applyCoachAction('clear evening after 5'));
+        continue;
+      }
+      if (action.type === 'balance') {
+        notes.push(applyCoachAction('balance categories'));
+        continue;
+      }
+      if (action.type === 'prioritize_work') {
+        notes.push(applyCoachAction('prioritize work'));
+        continue;
+      }
+      if (action.type === 'boost_priority') {
+        const match = findTaskByTitle(action.taskTitle);
+        if (match) {
+          setTasks((prev) =>
+            prev.map((t) =>
+              t.id === match.id ? { ...t, priority: 'high' as Priority } : t
+            )
+          );
+          pushChange('Priority boosted', `${match.title} → HIGH`);
+          notes.push(`Boosted “${match.title}” to high priority.`);
+        } else {
+          notes.push(applyCoachAction('boost priority of focus task'));
+        }
+        continue;
+      }
+      if (action.type === 'set_sleep') {
+        if (typeof action.needHours === 'number' && action.needHours > 0) {
+          const keep = action.keep === 'bed' ? 'bed' : 'wake';
+          const next = applySleepNeedHours(sleep, action.needHours, keep);
+          setSleep(next);
+          pushChange(
+            'Sleep need updated',
+            `${action.needHours}h · Bed ${next.bedtime} · Wake ${next.wakeTime}`
+          );
+          notes.push(
+            `Set sleep need to ${action.needHours}h → bed ${next.bedtime}, wake ${next.wakeTime}.`
+          );
+        } else {
+          const next = { ...sleep };
+          if (action.bedtime) next.bedtime = action.bedtime;
+          if (action.wakeTime) next.wakeTime = action.wakeTime;
+          setSleep(next);
+          pushChange(
+            'Sleep updated',
+            `${sleepDurationHours(next)}h · Bed ${next.bedtime} · Wake ${next.wakeTime}`
+          );
+          notes.push(
+            `Updated sleep → bed ${next.bedtime} / wake ${next.wakeTime}.`
+          );
+        }
+        continue;
+      }
+      if (action.type === 'add_task') {
+        const duration = action.durationMinutes || 60;
+        const category = (action.category || 'work') as Category;
+        const priority = (action.priority || 'medium') as Priority;
+        const start = action.preferredStart || peakStart;
+        const newTask: Task = {
+          id: `t-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          title: action.title.slice(0, 64),
+          date: selectedDate,
+          start,
+          end: addMinutesToTime(start, duration),
+          durationMinutes: duration,
+          category,
+          priority,
+          icon: iconForCategory(category),
+          order: tasksForSelectedDate.length,
+        };
+        const day = [...tasks.filter((t) => t.date === selectedDate), newTask];
+        const others = tasks.filter((t) => t.date !== selectedDate);
+        setTasks([...others, ...packDay(day, selectedDate, peakStart)]);
+        pushChange('Task added', `${newTask.title} (${formatDuration(duration)})`);
+        notes.push(`Added “${newTask.title}”.`);
+        continue;
+      }
+      if (action.type === 'move_task') {
+        const match = findTaskByTitle(action.taskTitle);
+        if (!match) {
+          notes.push(`Couldn’t find a task matching “${action.taskTitle}”.`);
+          continue;
+        }
+        const nextDate = action.date || selectedDate;
+        const nextStart = action.start || peakStart;
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === match.id
+              ? {
+                  ...t,
+                  date: nextDate,
+                  start: nextStart,
+                  end: addMinutesToTime(nextStart, t.durationMinutes),
+                  syncDirty: true,
+                }
+              : t
+          )
+        );
+        pushChange(
+          'Task moved',
+          `${match.title} → ${nextDate} ${nextStart}`
+        );
+        notes.push(`Moved “${match.title}” to ${nextDate} at ${nextStart}.`);
+        continue;
+      }
+      if (action.type === 'set_priority') {
+        const match = findTaskByTitle(action.taskTitle);
+        if (!match) {
+          notes.push(`Couldn’t find a task matching “${action.taskTitle}”.`);
+          continue;
+        }
+        setTasks((prev) =>
+          prev.map((t) =>
+            t.id === match.id
+              ? { ...t, priority: action.priority, syncDirty: true }
+              : t
+          )
+        );
+        pushChange('Priority updated', `${match.title} → ${action.priority}`);
+        notes.push(`Set “${match.title}” to ${action.priority} priority.`);
+        continue;
+      }
+      if (action.type === 'delete_task') {
+        const match = findTaskByTitle(action.taskTitle);
+        if (!match) {
+          notes.push(`Couldn’t find a task matching “${action.taskTitle}”.`);
+          continue;
+        }
+        setTasks((prev) => prev.filter((t) => t.id !== match.id));
+        pushChange('Task removed', match.title);
+        notes.push(`Removed “${match.title}”.`);
+      }
+    }
+
+    if (changes.length) setLastCoachChanges(changes);
+    return notes;
+  };
+
+  const buildCoachContext = () => {
+    const nearby = tasks
+      .filter((t) => {
+        const diff =
+          Math.abs(
+            new Date(t.date).getTime() - new Date(selectedDate).getTime()
+          ) /
+          (1000 * 60 * 60 * 24);
+        return diff <= 2;
+      })
+      .slice(0, 40)
+      .map((t) => ({
+        id: t.id,
+        title: t.title,
+        date: t.date,
+        start: t.start,
+        end: t.end,
+        durationMinutes: t.durationMinutes,
+        category: t.category,
+        priority: t.priority,
+      }));
+
+    return {
+      selectedDate,
+      chronotype,
+      peakStart,
+      sleep,
+      capacity: capacitySummary,
+      tasks: nearby,
+      recentMessages: coachMessages.slice(-8).map((m) => ({
+        role: m.role,
+        text: m.text,
+      })),
+    };
   };
 
   const value = useMemo<AppContextValue>(
@@ -1775,13 +1998,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       },
       coachMessages,
       lastCoachChanges,
-      sendCoachMessage: (text) => {
-        const reply = applyCoachAction(text);
+      coachBusy,
+      sendCoachMessage: async (text) => {
+        const trimmed = text.trim();
+        if (!trimmed || coachBusy) return;
+        const userId = `u-${Date.now()}`;
+        setCoachBusy(true);
         setCoachMessages((prev) => [
           ...prev,
-          { id: `u-${Date.now()}`, role: 'user', text },
-          { id: `a-${Date.now()}`, role: 'ai', text: reply },
+          { id: userId, role: 'user', text: trimmed },
         ]);
+
+        try {
+          if (isCloudCoachConfigured()) {
+            try {
+              const result = await cloudCoachChat({
+                message: trimmed,
+                context: buildCoachContext(),
+              });
+              applyCoachLlmActions(result.actions || []);
+              setCoachMessages((prev) => [
+                ...prev,
+                {
+                  id: `a-${Date.now()}`,
+                  role: 'ai',
+                  text: result.reply,
+                },
+              ]);
+              return;
+            } catch (err) {
+              // Fall back to local keyword coach if LLM endpoint isn't live yet
+              const message =
+                err instanceof Error ? err.message : 'Coach unavailable';
+              if (
+                !/Failed to fetch|NetworkError|Network request failed|503|not configured|UNAVAILABLE|ECONNREFUSED/i.test(
+                  message
+                )
+              ) {
+                setCoachMessages((prev) => [
+                  ...prev,
+                  {
+                    id: `a-${Date.now()}`,
+                    role: 'ai',
+                    text: `${message} Falling back to built-in coach for this message.`,
+                  },
+                ]);
+              }
+            }
+          }
+
+          const reply = applyCoachAction(trimmed);
+          setCoachMessages((prev) => [
+            ...prev,
+            { id: `a-${Date.now()}`, role: 'ai', text: reply },
+          ]);
+        } finally {
+          setCoachBusy(false);
+        }
       },
       applyCoachAction,
       peakWindowLabel: `${peakStart} peak`,
@@ -1800,6 +2073,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       calendarConnections,
       coachMessages,
       lastCoachChanges,
+      coachBusy,
       capacitySummary,
       peakStart,
     ]

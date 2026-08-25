@@ -149,6 +149,7 @@ export default function CoachScreen() {
     coachMessages,
     sendCoachMessage,
     lastCoachChanges,
+    coachBusy,
     capacitySummary,
     sleep,
     peakWindowLabel,
@@ -204,11 +205,11 @@ export default function CoachScreen() {
     [colors]
   );
 
-  const submit = (text?: string) => {
+  const submit = async (text?: string) => {
     const value = (text ?? draft).trim();
-    if (!value) return;
-    sendCoachMessage(value);
+    if (!value || coachBusy) return;
     setDraft('');
+    await sendCoachMessage(value);
   };
 
   return (
@@ -224,7 +225,8 @@ export default function CoachScreen() {
           <Text style={styles.title}>AI Coach</Text>
         </View>
         <Text style={styles.subtitle}>
-          Tap an action — I’ll change your schedule and show what moved.
+          Talk naturally — real AI reads your schedule and can change it. Quick
+          cards still work too.
         </Text>
         <View style={styles.metaRow}>
           <View style={[styles.metaChip, { backgroundColor: colors.todaySoft }]}>
@@ -306,6 +308,12 @@ export default function CoachScreen() {
           </Animated.View>
         ))}
 
+        {coachBusy ? (
+          <View style={[styles.bubble, styles.aiBubble]}>
+            <Text style={styles.bubbleText}>Thinking…</Text>
+          </View>
+        ) : null}
+
         {capacitySummary.overflowHours > 0 ? (
           <Animated.View entering={FadeInDown.delay(80)} style={styles.alert}>
             <Ionicons name="warning" size={18} color={colors.energy} />
@@ -320,17 +328,26 @@ export default function CoachScreen() {
         <TextInput
           value={draft}
           onChangeText={setDraft}
-          placeholder="Or type: set bedtime 11pm, add 45m gym…"
+          placeholder="Ask anything: “I’m overloaded after 4 — what should move?”"
           placeholderTextColor={colors.inkMuted}
           style={styles.input}
-          onSubmitEditing={() => submit()}
+          onSubmitEditing={() => {
+            void submit();
+          }}
           returnKeyType="send"
+          editable={!coachBusy}
         />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Send message"
-          onPress={() => submit()}
-          style={({ pressed }) => [styles.send, pressed && { opacity: 0.85 }]}
+          disabled={coachBusy}
+          onPress={() => {
+            void submit();
+          }}
+          style={({ pressed }) => [
+            styles.send,
+            (pressed || coachBusy) && { opacity: 0.85 },
+          ]}
         >
           <Ionicons name="arrow-up" size={20} color={colors.white} />
         </Pressable>

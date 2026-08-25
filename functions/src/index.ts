@@ -12,6 +12,7 @@ const db = getFirestore();
 
 const GOOGLE_CLIENT_ID = defineSecret("GOOGLE_CLIENT_ID");
 const GOOGLE_CLIENT_SECRET = defineSecret("GOOGLE_CLIENT_SECRET");
+const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
 
 const APP_REDIRECT_WEB = defineString("APP_REDIRECT_WEB", {
   default: "https://kairos-ai-13e53.web.app/calendar-sync",
@@ -1177,6 +1178,171 @@ export const saveUserWorkspace = onRequest(
           { merge: true }
         );
       res.json({ ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      res.status(500).json({ error: message });
+    }
+  }
+);
+
+// ---------------------------------------------------------------------------
+// AI Coach — OpenAI with the user's schedule as context
+// ---------------------------------------------------------------------------
+
+type CoachAction = {
+  type: string;
+  [key: string]: unknown;
+};
+
+const COACH_SYSTEM = `You are Kairos AI Coach — a concise scheduling co-pilot.
+You help users plan their day around energy peaks, sleep, and priorities.
+
+Rules:
+- Be warm, specific, and brief (2–5 sentences max in "reply").
+- Use the user's real tasks, sleep window, and capacity from context.
+- Prefer concrete schedule edits via "actions" when the user asks to change something.
+- If they only ask a question, return actions: [{ "type": "none" }].
+- Never invent tasks that aren't in context unless they ask to add one.
+- Times use H:MM or HH:MM (24h). Dates use YYYY-MM-DD.
+- Always return valid JSON only — no markdown fences.
+
+Return JSON shaped exactly like:
+{
+  "reply": "string spoken to the user",
+  "actions": [
+    { "type": "optimize" },
+    { "type": "protect_peak" },
+    { "type": "insert_break" },
+    { "type": "split_longest" },
+    { "type": "clear_evening" },
+    { "type": "boost_priority", "taskTitle": "optional match" },
+    { "type": "balance" },
+    { "type": "prioritize_work" },
+    { "type": "set_sleep", "bedtime": "23:00", "wakeTime": "7:00", "needHours": 8, "keep": "wake" },
+    { "type": "add_task", "title": "...", "durationMinutes": 45, "category": "work|health|study|life", "priority": "high|medium|low", "preferredStart": "14:00" },
+    { "type": "move_task", "taskTitle": "...", "date": "YYYY-MM-DD", "start": "9:00" },
+    { "type": "set_priority", "taskTitle": "...", "priority": "high" },
+    { "type": "delete_task", "taskTitle": "..." },
+    { "type": "none" }
+  ]
+}`;
+
+function parseCoachJson(raw: string): { reply: string; actions: CoachAction[] } {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = fenced ? fenced[1].trim() : trimmed;
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  const slice = start >= 0 && end > start ? body.slice(start, end + 1) : body;
+  const parsed = JSON.parse(slice) as {
+    reply?: string;
+    actions?: CoachAction[];
+  };
+  return {
+    reply:
+      String(parsed.reply || "").trim() ||
+      "I'm here — tell me how to reshape your day.",
+    actions: Array.isArray(parsed.actions)
+      ? parsed.actions
+      : [{ type: "none" }],
+  };
+}
+
+/**
+ * POST { token?, message, context }
+ * Uses OpenAI when OPENAI_API_KEY secret is set.
+ */
+export const coachChat = onRequest(
+  { secrets: [OPENAI_API_KEY], cors: true, invoker: "public" },
+  async (req, res) => {
+    try {
+      if (req.method === "OPTIONS") {
+        res.status(204).send("");
+        return;
+      }
+      if (req.method !== "POST") {
+        res.status(405).json({ error: "POST only" });
+        return;
+      }
+
+      const body =
+        typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
+      const message = String(body.message || "").trim();
+      const context = body.context || {};
+      const token = String(body.token || "");
+
+      if (!message) {
+        res.status(400).json({ error: "Message is required." });
+        return;
+      }
+
+      // Soft auth: prefer signed-in users, but allow guests for coach chat
+      if (token) {
+        const session = await resolveSession(token);
+        if (!session) {
+          res.status(401).json({ error: "Session expired — sign in again." });
+          return;
+        }
+      }
+
+      let apiKey = "";
+      try {
+        apiKey = OPENAI_API_KEY.value();
+      } catch {
+        apiKey = "";
+      }
+      if (!apiKey) {
+        res.status(503).json({
+          error:
+            "AI Coach is not configured yet. Set OPENAI_API_KEY with: firebase functions:secrets:set OPENAI_API_KEY",
+        });
+        return;
+      }
+
+      const openaiRes = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            temperature: 0.4,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: COACH_SYSTEM },
+              {
+                role: "user",
+                content: JSON.stringify({ message, schedule: context }),
+              },
+            ],
+          }),
+        }
+      );
+
+      const openaiJson = (await openaiRes.json()) as {
+        error?: { message?: string };
+        choices?: Array<{ message?: { content?: string } }>;
+      };
+
+      if (!openaiRes.ok) {
+        res.status(502).json({
+          error:
+            openaiJson.error?.message ||
+            `OpenAI request failed (${openaiRes.status})`,
+        });
+        return;
+      }
+
+      const content = openaiJson.choices?.[0]?.message?.content || "";
+      const parsed = parseCoachJson(content);
+      res.json({
+        reply: parsed.reply,
+        actions: parsed.actions,
+        source: "llm",
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";
       res.status(500).json({ error: message });
