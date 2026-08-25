@@ -31,7 +31,20 @@
         ]
       },
       {
-        "source": "**/*.@(ttf|otf|woff|woff2)",
+        "source": "**/*.ttf",
+        "headers": [
+          {
+            "key": "Content-Type",
+            "value": "font/ttf"
+          },
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(woff|woff2)",
         "headers": [
           {
             "key": "Access-Control-Allow-Origin",

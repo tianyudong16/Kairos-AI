@@ -1,23 +1,14 @@
-import {
-  DMSans_400Regular,
-  DMSans_500Medium,
-  DMSans_600SemiBold,
-  DMSans_700Bold,
-} from '@expo-google-fonts/dm-sans';
-import {
-  Fraunces_600SemiBold,
-  Fraunces_600SemiBold_Italic,
-} from '@expo-google-fonts/fraunces';
-import { Ionicons } from '@expo/vector-icons';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { AppProvider } from '@/context/AppContext';
-import { ThemeProvider, useTheme } from '@/constants/theme';
+import { ThemeProvider, useTheme, lightColors } from '@/constants/theme';
+import { appFonts } from '@/lib/fonts';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -28,19 +19,23 @@ function ThemedStatusBar() {
   return <StatusBar style={isDark ? 'light' : 'dark'} />;
 }
 
+function FontLoadingScreen() {
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: lightColors.bg,
+      }}
+    >
+      <ActivityIndicator size="large" color={lightColors.today} />
+    </View>
+  );
+}
+
 export default function RootLayout() {
-  // Preload brand fonts + Ionicons so icons don't render as □ on web/static hosts.
-  // Ionicons is also required from assets/ so Metro always emits the .ttf into dist/.
-  const [loaded, error] = useFonts({
-    DMSans_400Regular,
-    DMSans_500Medium,
-    DMSans_600SemiBold,
-    DMSans_700Bold,
-    Fraunces_600SemiBold,
-    Fraunces_600SemiBold_Italic,
-    ...Ionicons.font,
-    ionicons: require('../assets/fonts/Ionicons.ttf'),
-  });
+  const [loaded, error] = useFonts(appFonts);
 
   useEffect(() => {
     if (error) throw error;
@@ -53,7 +48,7 @@ export default function RootLayout() {
   }, [loaded]);
 
   if (!loaded) {
-    return null;
+    return <FontLoadingScreen />;
   }
 
   return (
