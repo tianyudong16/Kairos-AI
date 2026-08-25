@@ -45,20 +45,31 @@ npx firebase-tools deploy --only hosting
 
 Send them the URL Firebase prints (e.g. `https://kairos-ai-13e53.web.app`).
 
-## Multi-user login (required for other emails)
+## Full backend deploy (required for login + Google Calendar on the hosted URL)
 
-Accounts are stored in Firebase (not only in one browser). Deploy the auth functions once:
+Friends using your hosted link need Cloud Functions + Firestore — not just the static web build:
 
 ```bash
-cd functions
-npm install
-cd ..
-npx firebase-tools deploy --only functions
+cd functions && npm install && cd ..
+npx firebase-tools login
+npx firebase-tools deploy --only functions,firestore
+npx expo export --platform web
+npx firebase-tools deploy --only hosting
 ```
 
-Then any email can **Sign up** / **Sign in**, and schedules sync to that account.
+What this enables:
+- **Sign up / sign in / sign out** — accounts stored in Firestore (`accounts`, `sessions`, `users/{uid}/data/workspace`)
+- **Google Calendar** — tokens stored per user under `users/{uid}/calendarConnections/google`
+- **OAuth return** — after Google connect, users land back on your hosted URL (not localhost)
 
-### Google Calendar with other Gmail accounts
+Optional: set the hosted URL explicitly before export:
+
+```bash
+# .env
+EXPO_PUBLIC_APP_URL=https://kairos-ai-13e53.web.app
+```
+
+### Google Calendar for other Gmail accounts
 
 If Google Connect says the app is blocked / not verified for another email, open [Google Cloud Console](https://console.cloud.google.com/) → your OAuth client project → **OAuth consent screen** → **Test users** → add their Gmail. (While the app is in Testing mode, only listed emails can connect Google Calendar.)
 

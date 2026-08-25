@@ -47,6 +47,7 @@ export default function CalendarSyncScreen() {
     syncCalendar,
     importGoogleCloud,
     exportGoogleCloud,
+    user,
   } = useApp();
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -151,6 +152,9 @@ export default function CalendarSyncScreen() {
     if (!cloudGoogle || verifiedCloud.current || params.google === 'connected') {
       return;
     }
+    if (!user || user.isGuest) {
+      return;
+    }
     verifiedCloud.current = true;
     void (async () => {
       try {
@@ -228,6 +232,11 @@ export default function CalendarSyncScreen() {
   const connect = async (provider: CalendarProviderId) => {
     await run(`connect-${provider}`, async () => {
       if (provider === 'google') {
+        if (!user || user.isGuest) {
+          throw new Error(
+            'Sign in with your Kairos account before connecting Google Calendar.'
+          );
+        }
         if (!cloudGoogle) {
           throw new Error(
             'Google connect is not configured on the Kairos backend yet.'
@@ -290,6 +299,13 @@ export default function CalendarSyncScreen() {
           Connect Google once — Kairos imports your events into Schedule
           automatically. Outlook and Apple/Samsung follow the same idea.
         </Text>
+
+        {user?.isGuest ? (
+          <Text style={styles.subtitle}>
+            Sign in with your Kairos account (not guest) to connect Google Calendar
+            and sync across devices.
+          </Text>
+        ) : null}
 
         {providers.map((provider) => {
           const meta = PROVIDER_META[provider];

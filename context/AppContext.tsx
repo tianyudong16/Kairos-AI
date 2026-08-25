@@ -35,6 +35,7 @@ import {
   saveCloudAuthSession,
 } from '@/lib/cloud-auth';
 import { importGoogleFromCloud, exportGoogleToCloud, setCloudUid } from '@/lib/cloud-calendar';
+import { isHostedWebApp } from '@/lib/app-url';
 import { ImportedCalendarEvent } from '@/lib/ics';
 import {
   emptyWorkspace,
@@ -1049,17 +1050,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } catch (err) {
             const message =
               err instanceof Error ? err.message : 'Sign up failed';
-            // If backend isn't reachable yet, fall back to local accounts
+            if (isHostedWebApp()) {
+              return `${message} — deploy backend: npx firebase-tools deploy --only functions`;
+            }
             if (
-              /Failed to fetch|NetworkError|Network request failed|UNAVAILABLE|ECONNREFUSED/i.test(
+              !/Failed to fetch|NetworkError|Network request failed|UNAVAILABLE|ECONNREFUSED/i.test(
                 message
               )
             ) {
-              // continue to local fallback below
-            } else {
               return message;
             }
           }
+        }
+
+        if (isHostedWebApp()) {
+          return 'Sign up requires the Kairos cloud backend on this URL.';
         }
 
         if (findAccount(trimmedEmail, accounts)) {
@@ -1168,16 +1173,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } catch (err) {
             const message =
               err instanceof Error ? err.message : 'Sign in failed';
+            if (isHostedWebApp()) {
+              return `${message} — deploy backend: npx firebase-tools deploy --only functions`;
+            }
             if (
-              /Failed to fetch|NetworkError|Network request failed|UNAVAILABLE|ECONNREFUSED/i.test(
+              !/Failed to fetch|NetworkError|Network request failed|UNAVAILABLE|ECONNREFUSED/i.test(
                 message
               )
             ) {
-              // continue to local fallback below
-            } else {
               return message;
             }
           }
+        }
+
+        if (isHostedWebApp()) {
+          return 'Sign in requires the Kairos cloud backend on this URL.';
         }
 
         const account = findAccount(trimmedEmail, accounts);

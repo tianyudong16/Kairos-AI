@@ -2,13 +2,14 @@ import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 
+import { getCalendarSyncReturnUrl } from '@/lib/app-url';
+import { loadCloudAuthSession } from '@/lib/cloud-auth';
 import { fromJsDate, toIsoLocal } from '@/lib/calendar-sync/time';
 import { RemoteEvent } from '@/lib/calendar-sync/types';
 import type { SyncTaskPatch } from '@/lib/calendar-sync/types';
 import { toDateKey } from '@/lib/schedule';
 
 const CLOUD_UID_KEY = 'kairos.cloudUid';
-const CLOUD_UID_BY_USER_PREFIX = 'kairos.cloudUid.user.';
 
 function readEnv(name: string) {
   const env = (typeof process !== 'undefined' ? process.env : {}) as Record<
@@ -18,40 +19,25 @@ function readEnv(name: string) {
   return (env[name] || '').trim();
 }
 
-function activeUserUid(): string | null {
-  try {
-    if (typeof localStorage === 'undefined') return null;
-    const raw = localStorage.getItem('kairos.cloudAuth.v1');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as { user?: { uid?: string } };
-    return parsed?.user?.uid || null;
-  } catch {
-    return null;
+function requireAuthSession() {
+  const session = loadCloudAuthSession();
+  if (!session?.token || !session.user?.uid) {
+    throw new Error('Sign in to your Kairos account before using Google Calendar.');
   }
+  return session;
 }
 
-/** Per signed-in account id used as Firestore users/{uid} for calendar + auth. */
+/** Signed-in account id — used as Firestore users/{uid} for calendar + auth. */
 export function getCloudUid(): string {
-  const accountUid = activeUserUid();
-  if (accountUid) {
+  const session = loadCloudAuthSession();
+  if (session?.user?.uid) {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(CLOUD_UID_KEY, accountUid);
-      localStorage.setItem(CLOUD_UID_BY_USER_PREFIX + accountUid, accountUid);
+      localStorage.setItem(CLOUD_UID_KEY, session.user.uid);
     }
-    return accountUid;
+    return session.user.uid;
   }
 
-  if (typeof localStorage !== 'undefined') {
-    const existing = localStorage.getItem(CLOUD_UID_KEY);
-    if (existing) return existing;
-    const next =
-      typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `uid-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    localStorage.setItem(CLOUD_UID_KEY, next);
-    return next;
-  }
-  return `uid-${Date.now()}`;
+  throw new Error('Sign in to your Kairos account before connecting Google Calendar.');
 }
 
 export function setCloudUid(uid: string) {
@@ -60,10 +46,14 @@ export function setCloudUid(uid: string) {
   }
 }
 
+function authQuery() {
+  const session = requireAuthSession();
+  return `uid=${encodeURIComponent(session.user.uid)}&token=${encodeURIComponent(session.token)}`;
+}
+
 export function getGoogleOAuthStartUrl() {
   return (
     readEnv('EXPO_PUBLIC_GOOGLE_OAUTH_START_URL') ||
-    // Deployed Kairos Cloud Function (kairos-ai-13e53)
     'https://googleoauthstart-terdg5ahya-uc.a.run.app'
   );
 }
@@ -95,8 +85,12 @@ export function isCloudGoogleConfigured() {
 
 /** Opens Kairos backend Google OAuth — user only signs into Google. */
 export async function startCloudGoogleConnect() {
-  const uid = getCloudUid();
-  const url = `${getGoogleOAuthStartUrl()}?uid=${encodeURIComponent(uid)}`;
+  const session = requireAuthSession();
+  const appRedirect = encodeURIComponent(getCalendarSyncReturnUrl());
+  const url =
+    `${getGoogleOAuthStartUrl()}?uid=${encodeURIComponent(session.user.uid)}` +
+    `&token=${encodeURIComponent(session.token)}` +
+    `&appRedirect=${appRedirect}`;
 
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     window.location.assign(url);
@@ -115,12 +109,10 @@ type CloudGoogleEvent = {
   calendarId: string;
   title: string;
   allDay?: boolean;
-  /** Raw Google RFC3339 timestamps — preferred for local conversion */
   startDateTime?: string;
   endDateTime?: string;
   startDate?: string;
   endDate?: string;
-  /** Legacy/server-computed fields (UTC-skewed on old deploys) */
   date?: string;
   start?: string;
   end?: string;
@@ -144,10 +136,6 @@ export type CloudGoogleStatus = {
   lastImportedAt?: string | null;
 };
 
-/**
- * Convert Google timestamps to the device's local wall clock.
- * This must happen in the browser/app — Cloud Functions run in UTC.
- */
 export function localizeCloudGoogleEvent(raw: CloudGoogleEvent): RemoteEvent {
   if (raw.allDay || (raw.startDate && !raw.startDateTime)) {
     const date = raw.startDate || raw.date || toDateKey(new Date());
@@ -177,7 +165,6 @@ export function localizeCloudGoogleEvent(raw: CloudGoogleEvent): RemoteEvent {
     };
   }
 
-  // Fallback for older function responses without startDateTime
   return {
     id: raw.id,
     calendarId: raw.calendarId,
@@ -190,10 +177,8 @@ export function localizeCloudGoogleEvent(raw: CloudGoogleEvent): RemoteEvent {
   };
 }
 
-/** Check whether Firestore has a Google connection for this device. */
 export async function getGoogleCloudStatus(): Promise<CloudGoogleStatus> {
-  const uid = getCloudUid();
-  const url = `${getGoogleStatusUrl()}?uid=${encodeURIComponent(uid)}`;
+  const url = `${getGoogleStatusUrl()}?${authQuery()}`;
   const res = await fetch(url);
   const json = (await res.json()) as CloudGoogleStatus & { error?: string };
   if (!res.ok) {
@@ -202,19 +187,19 @@ export async function getGoogleCloudStatus(): Promise<CloudGoogleStatus> {
   return json;
 }
 
-/** Pull Google events via Kairos Cloud Function (uses stored refresh token). */
 export async function importGoogleFromCloud(
   daysAhead = 14
 ): Promise<CloudImportResult> {
-  const uid = getCloudUid();
+  const session = requireAuthSession();
   const base = getImportGoogleUrl();
   const tz =
     typeof Intl !== 'undefined'
       ? Intl.DateTimeFormat().resolvedOptions().timeZone
       : 'America/Los_Angeles';
-  const url = `${base}?uid=${encodeURIComponent(uid)}&days=${daysAhead}&tz=${encodeURIComponent(
-    tz
-  )}`;
+  const url =
+    `${base}?uid=${encodeURIComponent(session.user.uid)}` +
+    `&token=${encodeURIComponent(session.token)}` +
+    `&days=${daysAhead}&tz=${encodeURIComponent(tz)}`;
   const res = await fetch(url);
   let json: Omit<CloudImportResult, 'events'> & {
     error?: string;
@@ -226,7 +211,7 @@ export async function importGoogleFromCloud(
     throw new Error(
       res.ok
         ? 'Could not import from Google Calendar.'
-        : `Import failed (${res.status}). Redeploy Cloud Functions so importGoogle is live.`
+        : `Import failed (${res.status}). Deploy Cloud Functions: npx firebase-tools deploy --only functions`
     );
   }
   if (!res.ok) {
@@ -254,7 +239,6 @@ export type CloudExportResult = {
   links: Array<{ taskId: string; externalId: string; calendarId: string }>;
 };
 
-/** Push Kairos tasks to Google Calendar via Cloud Function. */
 export async function exportGoogleToCloud(
   tasks: SyncTaskPatch[]
 ): Promise<CloudExportResult> {
@@ -267,10 +251,11 @@ export async function exportGoogleToCloud(
       links: [],
     };
   }
-  const uid = getCloudUid();
+  const session = requireAuthSession();
   const url = getExportGoogleUrl();
   const payload = {
-    uid,
+    uid: session.user.uid,
+    token: session.token,
     tasks: tasks.map((task) => ({
       id: task.id,
       title: task.title,
@@ -291,7 +276,7 @@ export async function exportGoogleToCloud(
     json = (await res.json()) as CloudExportResult & { error?: string };
   } catch {
     throw new Error(
-      `Export failed (${res.status}). Redeploy Cloud Functions so exportGoogle is live.`
+      `Export failed (${res.status}). Deploy Cloud Functions: npx firebase-tools deploy --only functions`
     );
   }
   if (!res.ok) {

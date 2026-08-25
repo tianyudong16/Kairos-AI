@@ -14,7 +14,12 @@ const GOOGLE_CLIENT_ID = defineSecret("GOOGLE_CLIENT_ID");
 const GOOGLE_CLIENT_SECRET = defineSecret("GOOGLE_CLIENT_SECRET");
 
 const APP_REDIRECT_WEB = defineString("APP_REDIRECT_WEB", {
-  default: "http://localhost:8081/calendar-sync",
+  default: "https://kairos-ai-13e53.web.app/calendar-sync",
+});
+
+const ALLOWED_APP_ORIGINS = defineString("ALLOWED_APP_ORIGINS", {
+  default:
+    "http://localhost:8081,https://kairos-ai-13e53.web.app,https://kairos-ai-13e53.firebaseapp.com",
 });
 
 /** Full public URL of the googleOAuthCallback Cloud Run service */
@@ -34,17 +39,73 @@ function signState(payload: object) {
   return base64Url(JSON.stringify(payload));
 }
 
-function readState(state: string): { uid: string } | null {
+function readState(state: string): { uid: string; appRedirect?: string } | null {
   try {
     const json = Buffer.from(
       state.replace(/-/g, "+").replace(/_/g, "/"),
       "base64"
     ).toString("utf8");
-    const parsed = JSON.parse(json) as { uid?: string };
+    const parsed = JSON.parse(json) as { uid?: string; appRedirect?: string };
     if (!parsed?.uid || typeof parsed.uid !== "string") return null;
-    return { uid: parsed.uid };
+    return {
+      uid: parsed.uid,
+      appRedirect:
+        typeof parsed.appRedirect === "string" ? parsed.appRedirect : undefined,
+    };
   } catch {
     return null;
+  }
+}
+
+function hashToken(token: string) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+async function resolveSession(token: string) {
+  if (!token) return null;
+  const tokenHash = hashToken(token);
+  const snap = await db.collection("sessions").doc(tokenHash).get();
+  if (!snap.exists) return null;
+  const data = snap.data() as {
+    uid?: string;
+    expiresAt?: Date | { toDate: () => Date };
+  };
+  if (!data.uid) return null;
+  const expires =
+    data.expiresAt instanceof Date
+      ? data.expiresAt
+      : data.expiresAt && typeof data.expiresAt.toDate === "function"
+        ? data.expiresAt.toDate()
+        : null;
+  if (expires && expires.getTime() < Date.now()) {
+    await snap.ref.delete();
+    return null;
+  }
+  return { uid: data.uid, tokenHash };
+}
+
+async function assertUidSession(uid: string, token: string) {
+  const session = await resolveSession(token);
+  return session?.uid === uid;
+}
+
+function resolveAppRedirect(candidate?: string) {
+  const fallback = APP_REDIRECT_WEB.value();
+  if (!candidate) return fallback;
+  try {
+    const url = new URL(candidate);
+    const allowed = ALLOWED_APP_ORIGINS.value()
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const ok = allowed.some(
+      (origin) => url.origin === origin || url.href.startsWith(origin)
+    );
+    if (!ok) return fallback;
+    if (!url.pathname.includes("calendar-sync")) return fallback;
+    return url.toString();
+  } catch {
+    return fallback;
   }
 }
 
@@ -159,8 +220,14 @@ export const googleOAuthStart = onRequest(
   { secrets: [GOOGLE_CLIENT_ID], cors: true, invoker: "public" },
   async (req, res) => {
     const uid = String(req.query.uid || "");
+    const token = String(req.query.token || "");
+    const appRedirect = String(req.query.appRedirect || "");
     if (!uid) {
       res.status(400).send("Missing uid.");
+      return;
+    }
+    if (!(await assertUidSession(uid, token))) {
+      res.status(401).send("Sign in to Kairos before connecting Google Calendar.");
       return;
     }
 
@@ -168,6 +235,7 @@ export const googleOAuthStart = onRequest(
     const state = signState({
       uid,
       nonce: crypto.randomBytes(8).toString("hex"),
+      appRedirect: resolveAppRedirect(appRedirect || undefined),
     });
 
     const params = new URLSearchParams({
@@ -291,7 +359,7 @@ export const googleOAuthCallback = onRequest(
         );
 
       res.redirect(
-        `${APP_REDIRECT_WEB.value()}?google=connected&uid=${encodeURIComponent(
+        `${resolveAppRedirect(state.appRedirect)}?google=connected&uid=${encodeURIComponent(
           state.uid
         )}`
       );
@@ -311,8 +379,13 @@ export const googleStatus = onRequest(
   async (req, res) => {
     try {
       const uid = String(req.query.uid || "");
+      const token = String(req.query.token || "");
       if (!uid) {
         res.status(400).json({ error: "Missing uid." });
+        return;
+      }
+      if (!(await assertUidSession(uid, token))) {
+        res.status(401).json({ error: "Not signed in." });
         return;
       }
       const snap = await db
@@ -356,6 +429,7 @@ export const importGoogle = onRequest(
   async (req, res) => {
     try {
       const uid = String(req.query.uid || "");
+      const token = String(req.query.token || "");
       const days = Math.min(
         60,
         Math.max(1, parseInt(String(req.query.days || "14"), 10) || 14)
@@ -365,6 +439,10 @@ export const importGoogle = onRequest(
       );
       if (!uid) {
         res.status(400).json({ error: "Missing uid." });
+        return;
+      }
+      if (!(await assertUidSession(uid, token))) {
+        res.status(401).json({ error: "Not signed in." });
         return;
       }
 
@@ -565,6 +643,7 @@ export const exportGoogle = onRequest(
 
       const body = (typeof req.body === "string" ? JSON.parse(req.body) : req.body) as {
         uid?: string;
+        token?: string;
         tasks?: Array<{
           id: string;
           title: string;
@@ -577,9 +656,14 @@ export const exportGoogle = onRequest(
       };
 
       const uid = String(body.uid || "");
+      const token = String(body.token || "");
       const tasks = Array.isArray(body.tasks) ? body.tasks : [];
       if (!uid) {
         res.status(400).json({ error: "Missing uid." });
+        return;
+      }
+      if (!(await assertUidSession(uid, token))) {
+        res.status(401).json({ error: "Not signed in." });
         return;
       }
       if (!tasks.length) {
@@ -777,10 +861,6 @@ async function verifyPassword(password: string, stored: string) {
   return crypto.timingSafeEqual(expected, derived);
 }
 
-function hashToken(token: string) {
-  return crypto.createHash("sha256").update(token).digest("hex");
-}
-
 async function createSession(uid: string) {
   const token = crypto.randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
@@ -791,29 +871,6 @@ async function createSession(uid: string) {
     createdAt: FieldValue.serverTimestamp(),
   });
   return { token, expiresAt };
-}
-
-async function resolveSession(token: string) {
-  if (!token) return null;
-  const tokenHash = hashToken(token);
-  const snap = await db.collection("sessions").doc(tokenHash).get();
-  if (!snap.exists) return null;
-  const data = snap.data() as {
-    uid?: string;
-    expiresAt?: Date | { toDate: () => Date };
-  };
-  if (!data.uid) return null;
-  const expires =
-    data.expiresAt instanceof Date
-      ? data.expiresAt
-      : data.expiresAt && typeof data.expiresAt.toDate === "function"
-        ? data.expiresAt.toDate()
-        : null;
-  if (expires && expires.getTime() < Date.now()) {
-    await snap.ref.delete();
-    return null;
-  }
-  return { uid: data.uid, tokenHash };
 }
 
 function publicUser(uid: string, data: AuthUserDoc) {
