@@ -225,8 +225,8 @@ export default function CoachScreen() {
           <Text style={styles.title}>AI Coach</Text>
         </View>
         <Text style={styles.subtitle}>
-          Talk naturally — real AI reads your schedule and can change it. Quick
-          cards still work too.
+          Live Gemini chat about your day — not preset scripts. Action cards are
+          shortcuts.
         </Text>
         <View style={styles.metaRow}>
           <View style={[styles.metaChip, { backgroundColor: colors.todaySoft }]}>

@@ -73,19 +73,21 @@ EXPO_PUBLIC_APP_URL=https://kairos-ai-13e53.web.app
 
 If Google Connect says the app is blocked / not verified for another email, open [Google Cloud Console](https://console.cloud.google.com/) → your OAuth client project → **OAuth consent screen** → **Test users** → add their Gmail. (While the app is in Testing mode, only listed emails can connect Google Calendar.)
 
-## AI Coach (real LLM)
+## AI Coach (live Gemini chatbot)
 
-You do **not** need to build your own agent. The coach calls OpenAI through a Cloud Function (`coachChat`) with the user’s schedule as context, then applies structured actions in the app.
+Free-form coach chat uses **Google Gemini** through Cloud Function `coachChat` (not preset keyword replies).
 
 ```bash
-# Paste your OpenAI API key when prompted
-npx firebase-tools functions:secrets:set OPENAI_API_KEY
+# Get a key at https://aistudio.google.com/apikey
+npx firebase-tools functions:secrets:set GEMINI_API_KEY
 
-# Redeploy functions (includes coachChat)
+# Redeploy so coachChat picks up the secret
 npx firebase-tools deploy --only functions
 ```
 
-Without the secret, free-form chat falls back to the older keyword coach (action cards still work).
+Optional: you can also use OpenAI later, but Gemini alone is enough.
+
+Until a key is set, typed messages will tell you AI isn’t live yet. Action cards still work locally.
 
 ## App Store / Play Store path
 

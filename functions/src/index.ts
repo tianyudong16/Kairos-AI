@@ -12,7 +12,7 @@ const db = getFirestore();
 
 const GOOGLE_CLIENT_ID = defineSecret("GOOGLE_CLIENT_ID");
 const GOOGLE_CLIENT_SECRET = defineSecret("GOOGLE_CLIENT_SECRET");
-const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
+const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
 
 const APP_REDIRECT_WEB = defineString("APP_REDIRECT_WEB", {
   default: "https://kairos-ai-13e53.web.app/calendar-sync",
@@ -1186,7 +1186,7 @@ export const saveUserWorkspace = onRequest(
 );
 
 // ---------------------------------------------------------------------------
-// AI Coach — OpenAI with the user's schedule as context
+// AI Coach — Gemini (primary) / OpenAI (optional fallback)
 // ---------------------------------------------------------------------------
 
 type CoachAction = {
@@ -1194,21 +1194,25 @@ type CoachAction = {
   [key: string]: unknown;
 };
 
-const COACH_SYSTEM = `You are Kairos AI Coach — a concise scheduling co-pilot.
-You help users plan their day around energy peaks, sleep, and priorities.
+const COACH_SYSTEM = `You are Kairos AI Coach — a real-time scheduling chatbot (like Gemini), not a menu of canned replies.
 
-Rules:
-- Be warm, specific, and brief (2–5 sentences max in "reply").
-- Use the user's real tasks, sleep window, and capacity from context.
-- Prefer concrete schedule edits via "actions" when the user asks to change something.
-- If they only ask a question, return actions: [{ "type": "none" }].
+Personality:
+- Conversational, helpful, and specific to THIS user's day.
+- Reference their actual task titles, times, sleep window, and capacity.
+- Sound natural. Avoid sounding like a scripted FAQ.
+
+Behavior:
+- Answer questions normally even when you are not changing the schedule.
+- When they ask you to change something, include schedule "actions".
+- If they are just chatting or asking advice, use actions: [{ "type": "none" }].
 - Never invent tasks that aren't in context unless they ask to add one.
 - Times use H:MM or HH:MM (24h). Dates use YYYY-MM-DD.
-- Always return valid JSON only — no markdown fences.
+- Keep "reply" to a short chat message (usually 2–6 sentences).
+- Return valid JSON only — no markdown fences.
 
-Return JSON shaped exactly like:
+JSON shape:
 {
-  "reply": "string spoken to the user",
+  "reply": "natural chatbot message to the user",
   "actions": [
     { "type": "optimize" },
     { "type": "protect_peak" },
@@ -1241,19 +1245,98 @@ function parseCoachJson(raw: string): { reply: string; actions: CoachAction[] } 
   return {
     reply:
       String(parsed.reply || "").trim() ||
-      "I'm here — tell me how to reshape your day.",
+      "I'm here — tell me what's going on with your day.",
     actions: Array.isArray(parsed.actions)
       ? parsed.actions
       : [{ type: "none" }],
   };
 }
 
+function readSecret(secret: ReturnType<typeof defineSecret>) {
+  try {
+    return secret.value() || "";
+  } catch {
+    return "";
+  }
+}
+
+async function callGeminiCoach(
+  apiKey: string,
+  message: string,
+  context: unknown,
+  recentMessages: Array<{ role?: string; text?: string }>
+) {
+  const history = (Array.isArray(recentMessages) ? recentMessages : [])
+    .slice(-8)
+    .map((m) => ({
+      role: m.role === "user" ? "user" : "model",
+      parts: [{ text: String(m.text || "") }],
+    }))
+    .filter((m) => m.parts[0].text.trim());
+
+  const contents = [
+    ...history,
+    {
+      role: "user",
+      parts: [
+        {
+          text: JSON.stringify({
+            instruction:
+              "Respond as Kairos AI Coach. Use the schedule context. Return JSON only.",
+            message,
+            schedule: context,
+          }),
+        },
+      ],
+    },
+  ];
+
+  const url =
+    `https://generativelanguage.googleapis.com/v1beta/models/` +
+    `gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: COACH_SYSTEM }] },
+      contents,
+      generationConfig: {
+        temperature: 0.7,
+        responseMimeType: "application/json",
+      },
+    }),
+  });
+
+  const json = (await res.json()) as {
+    error?: { message?: string };
+    candidates?: Array<{
+      content?: { parts?: Array<{ text?: string }> };
+    }>;
+  };
+
+  if (!res.ok) {
+    throw new Error(
+      json.error?.message || `Gemini request failed (${res.status})`
+    );
+  }
+
+  const text =
+    json.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text || "")
+      .join("") || "";
+  if (!text.trim()) {
+    throw new Error("Gemini returned an empty response.");
+  }
+  return parseCoachJson(text);
+}
+
 /**
  * POST { token?, message, context }
- * Uses OpenAI when OPENAI_API_KEY secret is set.
+ * Live Gemini chatbot for Kairos schedule coaching.
  */
 export const coachChat = onRequest(
-  { secrets: [OPENAI_API_KEY], cors: true, invoker: "public" },
+  { secrets: [GEMINI_API_KEY], cors: true, invoker: "public" },
   async (req, res) => {
     try {
       if (req.method === "OPTIONS") {
@@ -1270,13 +1353,15 @@ export const coachChat = onRequest(
       const message = String(body.message || "").trim();
       const context = body.context || {};
       const token = String(body.token || "");
+      const recentMessages = Array.isArray(context.recentMessages)
+        ? context.recentMessages
+        : [];
 
       if (!message) {
         res.status(400).json({ error: "Message is required." });
         return;
       }
 
-      // Soft auth: prefer signed-in users, but allow guests for coach chat
       if (token) {
         const session = await resolveSession(token);
         if (!session) {
@@ -1285,63 +1370,27 @@ export const coachChat = onRequest(
         }
       }
 
-      let apiKey = "";
-      try {
-        apiKey = OPENAI_API_KEY.value();
-      } catch {
-        apiKey = "";
-      }
-      if (!apiKey) {
+      const geminiKey = readSecret(GEMINI_API_KEY);
+      if (!geminiKey) {
         res.status(503).json({
           error:
-            "AI Coach is not configured yet. Set OPENAI_API_KEY with: firebase functions:secrets:set OPENAI_API_KEY",
+            "AI Coach is not live yet. Set GEMINI_API_KEY: firebase functions:secrets:set GEMINI_API_KEY then redeploy functions.",
         });
         return;
       }
 
-      const openaiRes = await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            temperature: 0.4,
-            response_format: { type: "json_object" },
-            messages: [
-              { role: "system", content: COACH_SYSTEM },
-              {
-                role: "user",
-                content: JSON.stringify({ message, schedule: context }),
-              },
-            ],
-          }),
-        }
+      const parsed = await callGeminiCoach(
+        geminiKey,
+        message,
+        context,
+        recentMessages
       );
 
-      const openaiJson = (await openaiRes.json()) as {
-        error?: { message?: string };
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-
-      if (!openaiRes.ok) {
-        res.status(502).json({
-          error:
-            openaiJson.error?.message ||
-            `OpenAI request failed (${openaiRes.status})`,
-        });
-        return;
-      }
-
-      const content = openaiJson.choices?.[0]?.message?.content || "";
-      const parsed = parseCoachJson(content);
       res.json({
         reply: parsed.reply,
         actions: parsed.actions,
         source: "llm",
+        provider: "gemini",
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error";

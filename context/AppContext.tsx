@@ -36,7 +36,6 @@ import {
 } from '@/lib/cloud-auth';
 import {
   cloudCoachChat,
-  isCloudCoachConfigured,
   type CoachLlmAction,
 } from '@/lib/cloud-coach';
 import { importGoogleFromCloud, exportGoogleToCloud, setCloudUid } from '@/lib/cloud-calendar';
@@ -558,7 +557,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     {
       id: 'c1',
       role: 'ai',
-      text: 'Ask me anything about your day — I’ll use real AI plus your schedule. Or tap an action card above for a quick tweak.',
+      text: 'Chat with me like Gemini — I’ll use your real schedule. Action cards are shortcuts if AI isn’t connected yet.',
     },
   ]);
   const [lastCoachChanges, setLastCoachChanges] = useState<CoachChange[]>([]);
@@ -2009,49 +2008,59 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           { id: userId, role: 'user', text: trimmed },
         ]);
 
+        // Exact quick-action prompts can still use the local schedule tools
+        const quickActions = new Set([
+          'protect peak window',
+          'move low priority to tomorrow',
+          'insert recovery break',
+          'split longest task',
+          'clear evening after 5',
+          'boost priority of focus task',
+        ]);
+
         try {
-          if (isCloudCoachConfigured()) {
-            try {
-              const result = await cloudCoachChat({
-                message: trimmed,
-                context: buildCoachContext(),
-              });
-              applyCoachLlmActions(result.actions || []);
+          try {
+            const result = await cloudCoachChat({
+              message: trimmed,
+              context: buildCoachContext(),
+            });
+            applyCoachLlmActions(result.actions || []);
+            setCoachMessages((prev) => [
+              ...prev,
+              {
+                id: `a-${Date.now()}`,
+                role: 'ai',
+                text: result.reply,
+              },
+            ]);
+            return;
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Coach unavailable';
+
+            if (quickActions.has(trimmed.toLowerCase())) {
+              const reply = applyCoachAction(trimmed);
               setCoachMessages((prev) => [
                 ...prev,
-                {
-                  id: `a-${Date.now()}`,
-                  role: 'ai',
-                  text: result.reply,
-                },
+                { id: `a-${Date.now()}`, role: 'ai', text: reply },
               ]);
               return;
-            } catch (err) {
-              // Fall back to local keyword coach if LLM endpoint isn't live yet
-              const message =
-                err instanceof Error ? err.message : 'Coach unavailable';
-              if (
-                !/Failed to fetch|NetworkError|Network request failed|503|not configured|UNAVAILABLE|ECONNREFUSED/i.test(
-                  message
-                )
-              ) {
-                setCoachMessages((prev) => [
-                  ...prev,
-                  {
-                    id: `a-${Date.now()}`,
-                    role: 'ai',
-                    text: `${message} Falling back to built-in coach for this message.`,
-                  },
-                ]);
-              }
             }
-          }
 
-          const reply = applyCoachAction(trimmed);
-          setCoachMessages((prev) => [
-            ...prev,
-            { id: `a-${Date.now()}`, role: 'ai', text: reply },
-          ]);
+            setCoachMessages((prev) => [
+              ...prev,
+              {
+                id: `a-${Date.now()}`,
+                role: 'ai',
+                text:
+                  `I can’t reach the live AI coach yet (${message}). ` +
+                  `On your machine run:\n` +
+                  `1) npx firebase-tools functions:secrets:set GEMINI_API_KEY\n` +
+                  `2) npx firebase-tools deploy --only functions\n` +
+                  `Until then, tap an action card above for quick schedule edits.`,
+              },
+            ]);
+          }
         } finally {
           setCoachBusy(false);
         }
