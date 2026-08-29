@@ -110,12 +110,12 @@ export function CategoryEditModal({
     },
     useBtn: {
       borderRadius: radii.pill,
-      backgroundColor: c.ink,
+      backgroundColor: c.selectedFill,
       paddingHorizontal: 10,
       paddingVertical: 6,
     },
     useText: {
-      color: c.white,
+      color: c.onSelected,
       fontFamily: fonts.semibold,
       fontSize: 11,
     },

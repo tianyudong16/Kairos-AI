@@ -49,7 +49,7 @@ export function CircadianChart() {
     },
     fill: {
       width: '100%',
-      backgroundColor: c.ink,
+      backgroundColor: c.selectedFill,
       borderRadius: radii.sm,
     },
     label: {

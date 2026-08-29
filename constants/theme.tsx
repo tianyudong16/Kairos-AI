@@ -45,6 +45,11 @@ export const lightColors = {
   calendarSoft: '#CCFBF1',
   today: '#059669',
   todaySoft: '#D1FAE5',
+
+  /** Filled selected/active control (chip, toggle, avatar) */
+  selectedFill: '#0C2A32',
+  /** Text/icon on selectedFill */
+  onSelected: '#FFFFFF',
 };
 
 export const darkColors: typeof lightColors = {
@@ -83,6 +88,9 @@ export const darkColors: typeof lightColors = {
   calendarSoft: '#0F3F3C',
   today: '#34D399',
   todaySoft: '#0F3D2A',
+
+  selectedFill: '#34D399',
+  onSelected: '#020B0E',
 };
 
 export type ThemeColors = typeof lightColors;
