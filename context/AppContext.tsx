@@ -54,6 +54,7 @@ import {
   addDays,
   addMinutesToTime,
   applySleepNeedHours,
+  resolveCoachSleepSchedule,
   Category,
   CategoryDef,
   chronotypeDefaults,
@@ -1066,28 +1067,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         continue;
       }
       if (action.type === 'set_sleep') {
-        if (typeof action.needHours === 'number' && action.needHours > 0) {
-          const keep = action.keep === 'bed' ? 'bed' : 'wake';
-          const next = applySleepNeedHours(sleep, action.needHours, keep);
+        const next = resolveCoachSleepSchedule(sleep, action);
+        const changed =
+          next.bedtime !== sleep.bedtime || next.wakeTime !== sleep.wakeTime;
+        if (changed) {
           setSleep(next);
+          const usedNeedHours =
+            !action.bedtime &&
+            !action.wakeTime &&
+            typeof action.needHours === 'number' &&
+            action.needHours > 0;
           pushChange(
-            'Sleep need updated',
-            `${action.needHours}h · Bed ${next.bedtime} · Wake ${next.wakeTime}`
-          );
-          notes.push(
-            `Set sleep need to ${action.needHours}h → bed ${next.bedtime}, wake ${next.wakeTime}.`
-          );
-        } else {
-          const next = { ...sleep };
-          if (action.bedtime) next.bedtime = action.bedtime;
-          if (action.wakeTime) next.wakeTime = action.wakeTime;
-          setSleep(next);
-          pushChange(
-            'Sleep updated',
+            usedNeedHours ? 'Sleep need updated' : 'Sleep updated',
             `${sleepDurationHours(next)}h · Bed ${next.bedtime} · Wake ${next.wakeTime}`
           );
           notes.push(
-            `Updated sleep → bed ${next.bedtime} / wake ${next.wakeTime}.`
+            usedNeedHours
+              ? `Set sleep need to ${action.needHours}h → bed ${next.bedtime}, wake ${next.wakeTime}.`
+              : `Updated sleep → bed ${next.bedtime} / wake ${next.wakeTime}.`
+          );
+        } else {
+          notes.push(
+            `Sleep is already bed ${sleep.bedtime} / wake ${sleep.wakeTime}.`
           );
         }
         continue;
