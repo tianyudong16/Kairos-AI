@@ -1205,6 +1205,7 @@ Behavior:
 - Answer questions normally even when you are not changing the schedule.
 - When they ask you to change something, include schedule "actions".
 - If they are just chatting or asking advice, use actions: [{ "type": "none" }].
+- For set_sleep: when the user gives explicit bed and/or wake times, put those in bedtime/wakeTime. Only use needHours when they ask to change sleep duration without naming new times.
 - Never invent tasks that aren't in context unless they ask to add one.
 - Times use H:MM or HH:MM (24h). Dates use YYYY-MM-DD.
 - Keep "reply" to a short chat message (usually 2–6 sentences).
@@ -1293,7 +1294,7 @@ async function callGeminiCoach(
 
   const url =
     `https://generativelanguage.googleapis.com/v1beta/models/` +
-    `gemini-2.0-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+    `gemini-3.6-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
 
   const res = await fetch(url, {
     method: "POST",
