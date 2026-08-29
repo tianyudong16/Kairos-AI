@@ -104,12 +104,12 @@ export default function ProfileScreen() {
       width: 64,
       height: 64,
       borderRadius: 32,
-      backgroundColor: c.ink,
+      backgroundColor: c.selectedFill,
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
     },
     avatarText: {
-      color: c.white,
+      color: c.onSelected,
       fontFamily: fonts.bold,
       fontSize: 22,
     },
@@ -148,8 +148,8 @@ export default function ProfileScreen() {
     paddingVertical: 8,
   },
   chipSelected: {
-    backgroundColor: c.today,
-    borderColor: c.today,
+    backgroundColor: c.selectedFill,
+    borderColor: c.selectedFill,
   },
   chipText: {
     fontFamily: fonts.medium,
@@ -157,7 +157,7 @@ export default function ProfileScreen() {
     color: c.ink,
   },
   chipTextSelected: {
-    color: c.white,
+    color: c.onSelected,
   },
   input: {
       borderRadius: radii.md,

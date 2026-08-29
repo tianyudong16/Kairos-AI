@@ -48,7 +48,7 @@ export default function OnboardingScreen() {
       backgroundColor: c.lineStrong,
     },
     dotActive: {
-      backgroundColor: c.ink,
+      backgroundColor: c.selectedFill,
       width: 22,
     },
     content: {
@@ -88,8 +88,8 @@ export default function OnboardingScreen() {
       gap: 12,
     },
     optionSelected: {
-      backgroundColor: c.ink,
-      borderColor: c.ink,
+      backgroundColor: c.selectedFill,
+      borderColor: c.selectedFill,
     },
     optionLabel: {
       fontFamily: fonts.medium,
@@ -98,7 +98,7 @@ export default function OnboardingScreen() {
       flex: 1,
     },
     optionLabelSelected: {
-      color: c.white,
+      color: c.onSelected,
     },
     section: {
       fontFamily: fonts.semibold,
@@ -120,8 +120,8 @@ export default function OnboardingScreen() {
       paddingVertical: 8,
     },
     chipSelected: {
-      backgroundColor: c.ink,
-      borderColor: c.ink,
+      backgroundColor: c.selectedFill,
+      borderColor: c.selectedFill,
     },
     otherChip: {
       borderStyle: 'dashed' as const,
@@ -139,10 +139,10 @@ export default function OnboardingScreen() {
       color: c.ink,
     },
     chipTextSelected: {
-      color: c.white,
+      color: c.onSelected,
     },
     otherChipTextSelected: {
-      color: c.white,
+      color: c.onSelected,
       fontFamily: fonts.semibold,
     },
     customBox: {
@@ -350,7 +350,7 @@ export default function OnboardingScreen() {
                     <Ionicons
                       name={option.icon}
                       size={20}
-                      color={selected ? colors.white : colors.inkSoft}
+                      color={selected ? colors.onSelected : colors.inkSoft}
                     />
                     <Text
                       style={[
