@@ -85,7 +85,16 @@ export type CoachChatResult = {
   reply: string;
   actions: CoachLlmAction[];
   source: 'llm' | 'fallback';
+  creditsRemaining?: number;
 };
+
+export class CoachError extends Error {
+  code: string;
+  constructor(message: string, code: string) {
+    super(message);
+    this.code = code;
+  }
+}
 
 async function readJson(res: Response) {
   const text = await res.text();
@@ -113,12 +122,17 @@ export async function cloudCoachChat(input: {
   });
   const json = (await readJson(res)) as {
     error?: string;
+    code?: string;
     reply?: string;
     actions?: CoachLlmAction[];
     source?: 'llm' | 'fallback';
+    creditsRemaining?: number;
   };
   if (!res.ok) {
-    throw new Error(json.error || `Coach failed (${res.status})`);
+    throw new CoachError(
+      json.error || `Coach failed (${res.status})`,
+      json.code || (res.status === 402 ? 'NO_CREDITS' : 'COACH_ERROR')
+    );
   }
   if (!json.reply) {
     throw new Error('Coach returned an empty reply.');
@@ -127,5 +141,6 @@ export async function cloudCoachChat(input: {
     reply: json.reply,
     actions: Array.isArray(json.actions) ? json.actions : [],
     source: json.source || 'llm',
+    creditsRemaining: json.creditsRemaining,
   };
 }

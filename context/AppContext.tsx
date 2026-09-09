@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { colors, useTheme } from '@/constants/theme';
 import {
@@ -36,8 +36,15 @@ import {
 } from '@/lib/cloud-auth';
 import {
   cloudCoachChat,
+  CoachError,
   type CoachLlmAction,
 } from '@/lib/cloud-coach';
+import {
+  cloudGetBilling,
+  purchaseCreditPack,
+  type CreditPack,
+  isCloudBillingConfigured,
+} from '@/lib/cloud-billing';
 import { importGoogleFromCloud, exportGoogleToCloud, setCloudUid } from '@/lib/cloud-calendar';
 import { isHostedWebApp } from '@/lib/app-url';
 import { ImportedCalendarEvent } from '@/lib/ics';
@@ -163,6 +170,12 @@ type AppContextValue = {
   coachMessages: CoachMessage[];
   lastCoachChanges: CoachChange[];
   coachBusy: boolean;
+  coachCredits: number | null;
+  coachCreditPacks: CreditPack[];
+  creditsPerCoachMessage: number;
+  freeSignupCredits: number;
+  refreshCoachBilling: () => Promise<void>;
+  purchaseCoachCredits: (packId: string) => Promise<string | null>;
   sendCoachMessage: (text: string) => Promise<void>;
   applyCoachAction: (action: string) => string;
   peakWindowLabel: string;
@@ -390,6 +403,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             });
             saveWorkspace(cloud.user.uid, ws);
             setWorkspaceReady(true);
+            void refreshCoachBilling();
             return;
           }
         } catch {
@@ -558,11 +572,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     {
       id: 'c1',
       role: 'ai',
-      text: 'Chat with me like Gemini — I’ll use your real schedule. Action cards are shortcuts if AI isn’t connected yet.',
+      text: 'Chat with me like Gemini — sign in and use coach credits for live AI. Action cards are free shortcuts.',
     },
   ]);
   const [lastCoachChanges, setLastCoachChanges] = useState<CoachChange[]>([]);
   const [coachBusy, setCoachBusy] = useState(false);
+  const [coachCredits, setCoachCredits] = useState<number | null>(null);
+  const [coachCreditPacks, setCoachCreditPacks] = useState<CreditPack[]>([]);
+  const [creditsPerCoachMessage, setCreditsPerCoachMessage] = useState(1);
+  const [freeSignupCredits, setFreeSignupCredits] = useState(15);
+
+  const refreshCoachBilling = useCallback(async () => {
+    const session = loadCloudAuthSession();
+    if (!session?.token) {
+      setCoachCredits(null);
+      setCoachCreditPacks([]);
+      return;
+    }
+    if (!isCloudBillingConfigured()) return;
+    try {
+      const billing = await cloudGetBilling(session.token);
+      setCoachCredits(billing.creditsBalance);
+      setCoachCreditPacks(billing.packs);
+      setCreditsPerCoachMessage(billing.creditsPerMessage);
+      setFreeSignupCredits(billing.freeSignupCredits);
+    } catch {
+      setCoachCredits(null);
+    }
+  }, []);
+
+  const purchaseCoachCredits = useCallback(async (packId: string) => {
+    try {
+      await purchaseCreditPack(packId);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Checkout failed';
+    }
+  }, []);
 
   useEffect(() => {
     const builtInColors: Record<string, { color: string; soft: string }> = {
@@ -1257,6 +1303,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             });
             saveWorkspace(session.user.uid, fresh);
             void cloudSaveWorkspace(session.token, fresh).catch(() => undefined);
+            void refreshCoachBilling();
             // Mirror locally so offline sign-in still works on this device
             if (!findAccount(trimmedEmail, loadAccounts())) {
               setAccounts((prev) => [
@@ -1392,6 +1439,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 },
               ];
             });
+            void refreshCoachBilling();
             return null;
           } catch (err) {
             const message =
@@ -1526,6 +1574,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         void cloudLogout();
         saveSession(null);
         setUser(null);
+        setCoachCredits(null);
+        setCoachCreditPacks([]);
         resetWorkspaceMemory();
       },
       onboarded,
@@ -1999,6 +2049,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       coachMessages,
       lastCoachChanges,
       coachBusy,
+      coachCredits,
+      coachCreditPacks,
+      creditsPerCoachMessage,
+      freeSignupCredits,
+      refreshCoachBilling,
+      purchaseCoachCredits,
       sendCoachMessage: async (text) => {
         const trimmed = text.trim();
         if (!trimmed || coachBusy) return;
@@ -2009,7 +2065,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           { id: userId, role: 'user', text: trimmed },
         ]);
 
-        // Exact quick-action prompts can still use the local schedule tools
         const quickActions = new Set([
           'protect peak window',
           'move low priority to tomorrow',
@@ -2019,13 +2074,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           'boost priority of focus task',
         ]);
 
+        const session = loadCloudAuthSession();
+        const isGuest = user?.isGuest ?? !session?.token;
+
         try {
+          if (isGuest) {
+            setCoachMessages((prev) => [
+              ...prev,
+              {
+                id: `a-${Date.now()}`,
+                role: 'ai',
+                text:
+                  'Sign in to use live AI chat (uses coach credits). Action cards above still work for free schedule edits.',
+              },
+            ]);
+            return;
+          }
+
           try {
             const result = await cloudCoachChat({
               message: trimmed,
               context: buildCoachContext(),
             });
             applyCoachLlmActions(result.actions || []);
+            if (typeof result.creditsRemaining === 'number') {
+              setCoachCredits(result.creditsRemaining);
+            }
             setCoachMessages((prev) => [
               ...prev,
               {
@@ -2038,6 +2112,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } catch (err) {
             const message =
               err instanceof Error ? err.message : 'Coach unavailable';
+            const code = err instanceof CoachError ? err.code : '';
+
+            if (code === 'NO_CREDITS') {
+              setCoachMessages((prev) => [
+                ...prev,
+                {
+                  id: `a-${Date.now()}`,
+                  role: 'ai',
+                  text:
+                    `${message} Open Coach billing from your profile to buy a credit pack.`,
+                },
+              ]);
+              return;
+            }
+
+            if (code === 'AUTH_REQUIRED') {
+              setCoachMessages((prev) => [
+                ...prev,
+                {
+                  id: `a-${Date.now()}`,
+                  role: 'ai',
+                  text: message,
+                },
+              ]);
+              return;
+            }
 
             if (quickActions.has(trimmed.toLowerCase())) {
               const reply = applyCoachAction(trimmed);
@@ -2084,6 +2184,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       coachMessages,
       lastCoachChanges,
       coachBusy,
+      coachCredits,
+      coachCreditPacks,
+      creditsPerCoachMessage,
+      freeSignupCredits,
       capacitySummary,
       peakStart,
     ]

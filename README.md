@@ -89,6 +89,35 @@ Optional: you can also use OpenAI later, but Gemini alone is enough.
 
 Until a key is set, typed messages will tell you AI isn’t live yet. Action cards still work locally.
 
+### Coach credits & billing (Stripe)
+
+Live AI chat costs **coach credits** (1 credit per Gemini message). New accounts get **15 free credits**. Guests can use action cards only — sign in for live chat.
+
+**Credit packs** (configure in Stripe, then set secrets):
+
+| Pack | Credits | Suggested price |
+|------|---------|-----------------|
+| Starter | 50 | $4.99 |
+| Power | 200 | $14.99 |
+
+```bash
+# Stripe — create Products/prices in dashboard, then:
+npx firebase-tools functions:secrets:set STRIPE_SECRET_KEY
+npx firebase-tools functions:secrets:set STRIPE_WEBHOOK_SECRET
+npx firebase-tools functions:secrets:set STRIPE_PRICE_STARTER   # price_...
+npx firebase-tools functions:secrets:set STRIPE_PRICE_POWER     # price_...
+
+npx firebase-tools deploy --only functions
+```
+
+**Stripe webhook:** In [Stripe Dashboard → Webhooks](https://dashboard.stripe.com/webhooks), add endpoint:
+
+`https://stripewebhook-terdg5ahya-uc.a.run.app`
+
+Events: `checkout.session.completed`
+
+Users buy packs in **Profile → AI Coach credits & billing** (Stripe Checkout). Credits are granted server-side when payment completes — you are no longer paying for every user’s Gemini usage once they purchase credits.
+
 ## App Store / Play Store path
 
 This project is Expo-ready. When you want store builds:
