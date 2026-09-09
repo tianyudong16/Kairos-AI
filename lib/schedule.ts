@@ -88,6 +88,38 @@ export function applySleepNeedHours(
   };
 }
 
+/** Apply a coach/API set_sleep action — explicit times win over needHours. */
+export function resolveCoachSleepSchedule(
+  current: SleepSchedule,
+  action: {
+    bedtime?: string;
+    wakeTime?: string;
+    needHours?: number;
+    keep?: 'bed' | 'wake';
+  }
+): SleepSchedule {
+  const bed = action.bedtime
+    ? normalizeTimeInput(action.bedtime) ?? action.bedtime.trim()
+    : undefined;
+  const wake = action.wakeTime
+    ? normalizeTimeInput(action.wakeTime) ?? action.wakeTime.trim()
+    : undefined;
+
+  if (bed || wake) {
+    return {
+      bedtime: bed ?? current.bedtime,
+      wakeTime: wake ?? current.wakeTime,
+    };
+  }
+
+  if (typeof action.needHours === 'number' && action.needHours > 0) {
+    const anchor = action.keep === 'bed' ? 'bed' : 'wake';
+    return applySleepNeedHours(current, action.needHours, anchor);
+  }
+
+  return current;
+}
+
 /** Parse “need 8h”, “only 8 hours of sleep”, “sleep 8h”. */
 export function parseSleepNeedHours(text: string): number | null {
   const lower = text.toLowerCase();
