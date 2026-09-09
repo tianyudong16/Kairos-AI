@@ -35,9 +35,18 @@ import {
   RemoteCalendar,
 } from '@/lib/calendar-sync';
 
+const GOOGLE_TEST_USER_HELP =
+  'Google blocked this account because Kairos is still in Testing mode. ' +
+  'In Google Cloud Console → APIs & Services → OAuth consent screen → Test users, ' +
+  'add the Gmail you use to connect (e.g. dongty05@gmail.com), wait a minute, then try Connect Google again.';
+
 export default function CalendarSyncScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ google?: string; uid?: string }>();
+  const params = useLocalSearchParams<{
+    google?: string;
+    uid?: string;
+    reason?: string;
+  }>();
   const { colors } = useTheme();
   const {
     calendarConnections,
@@ -149,7 +158,12 @@ export default function CalendarSyncScreen() {
 
   // Keep local "Connected" badge in sync with Firestore (source of truth)
   useEffect(() => {
-    if (!cloudGoogle || verifiedCloud.current || params.google === 'connected') {
+    if (
+      !cloudGoogle ||
+      verifiedCloud.current ||
+      params.google === 'connected' ||
+      params.google === 'denied'
+    ) {
       return;
     }
     if (!user || user.isGuest) {
@@ -182,7 +196,22 @@ export default function CalendarSyncScreen() {
   }, [cloudGoogle]);
 
   // After Google OAuth, Cloud Function redirects here with ?google=connected&uid=...
+  // or ?google=denied&reason=access_denied when Google blocks the account.
   useEffect(() => {
+    if (params.google === 'denied') {
+      if (handledGoogleReturn.current) return;
+      handledGoogleReturn.current = true;
+      markGoogleDisconnected();
+      const reason = typeof params.reason === 'string' ? params.reason : '';
+      setError(
+        reason === 'access_denied'
+          ? GOOGLE_TEST_USER_HELP
+          : `Google sign-in was blocked (${reason || 'unknown'}). ${GOOGLE_TEST_USER_HELP}`
+      );
+      router.replace('/calendar-sync' as any);
+      return;
+    }
+
     if (params.google !== 'connected' || handledGoogleReturn.current) return;
     handledGoogleReturn.current = true;
 
@@ -227,7 +256,7 @@ export default function CalendarSyncScreen() {
         router.replace('/calendar-sync' as any);
       }
     });
-  }, [params.google, params.uid, importGoogleCloud, router, setCalendarConnection]);
+  }, [params.google, params.uid, params.reason, importGoogleCloud, router, setCalendarConnection]);
 
   const connect = async (provider: CalendarProviderId) => {
     await run(`connect-${provider}`, async () => {
@@ -352,6 +381,15 @@ export default function CalendarSyncScreen() {
                         connection.lastPushedAt
                       ).toLocaleString()}`
                     : ''}
+                </Text>
+              ) : null}
+
+              {isGoogleCloud && !connection.connected ? (
+                <Text style={styles.note}>
+                  While Google’s OAuth app is in Testing, only Gmail addresses listed
+                  under OAuth consent screen → Test users can connect. If you see
+                  “Access blocked” / Error 403, add that Gmail as a test user, then
+                  retry.
                 </Text>
               ) : null}
 

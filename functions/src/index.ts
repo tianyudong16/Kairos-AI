@@ -272,8 +272,24 @@ export const googleOAuthCallback = onRequest(
   },
   async (req, res) => {
     try {
-      const code = String(req.query.code || "");
+      const oauthError = String(req.query.error || "");
       const state = readState(String(req.query.state || ""));
+      const appRedirect = resolveAppRedirect(state?.appRedirect);
+
+      // Google redirects here when the user is blocked (e.g. not a Test user
+      // while the OAuth consent screen is in Testing mode).
+      if (oauthError) {
+        const reason =
+          oauthError === "access_denied"
+            ? "access_denied"
+            : oauthError.slice(0, 64);
+        res.redirect(
+          `${appRedirect}?google=denied&reason=${encodeURIComponent(reason)}`
+        );
+        return;
+      }
+
+      const code = String(req.query.code || "");
       if (!code || !state?.uid) {
         res.status(400).send("Missing code/state from Google.");
         return;
