@@ -43,7 +43,15 @@
       [
         "expo-font",
         {
-          "fonts": ["./assets/fonts/Ionicons.ttf"]
+          "fonts": [
+            "./assets/fonts/Ionicons.ttf",
+            "./node_modules/@expo-google-fonts/dm-sans/400Regular/DMSans_400Regular.ttf",
+            "./node_modules/@expo-google-fonts/dm-sans/500Medium/DMSans_500Medium.ttf",
+            "./node_modules/@expo-google-fonts/dm-sans/600SemiBold/DMSans_600SemiBold.ttf",
+            "./node_modules/@expo-google-fonts/dm-sans/700Bold/DMSans_700Bold.ttf",
+            "./node_modules/@expo-google-fonts/fraunces/600SemiBold/Fraunces_600SemiBold.ttf",
+            "./node_modules/@expo-google-fonts/fraunces/600SemiBold_Italic/Fraunces_600SemiBold_Italic.ttf"
+          ]
         }
       ],
       [

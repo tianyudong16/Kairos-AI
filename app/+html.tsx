@@ -31,4 +31,7 @@ export default function Root({ children }: { children: ReactNode }) {
 const responsiveBackground = `
 body {
   background-color: #F2EFE6;
-}`;
+  /* Fallback while custom fonts load — prevents invisible text on slow networks */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+`;
