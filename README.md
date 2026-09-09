@@ -69,9 +69,19 @@ Optional: set the hosted URL explicitly before export:
 EXPO_PUBLIC_APP_URL=https://kairos-ai-13e53.web.app
 ```
 
-### Google Calendar for other Gmail accounts
+### Google Calendar — “Access blocked” / Error 403
 
-If Google Connect says the app is blocked / not verified for another email, open [Google Cloud Console](https://console.cloud.google.com/) → your OAuth client project → **OAuth consent screen** → **Test users** → add their Gmail. (While the app is in Testing mode, only listed emails can connect Google Calendar.)
+Your OAuth app is in **Testing** until Google verifies it. Only listed emails can connect.
+
+1. Open [Google Cloud Console → OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent)
+2. Confirm **Publishing status** is **Testing**
+3. Under **Test users**, click **+ Add users**
+4. Add the Gmail you use to connect (for example `dongty05@gmail.com`)
+5. Save, wait ~1 minute, then try **Connect Google** again in Kairos
+
+The project owner account can usually connect without being listed; every other Gmail (including personal accounts you use while developing) must be added as a test user.
+
+Until you publish & verify the app (required for Calendar scopes in production), keep using Test users for friends who try Google Connect.
 
 ## AI Coach (live Gemini chatbot)
 
