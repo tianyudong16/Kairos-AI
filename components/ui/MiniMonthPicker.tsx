@@ -72,11 +72,11 @@ export function MiniMonthPicker({ value, onChange }: Props) {
       borderRadius: 8,
       margin: 1,
     },
-    cellActive: { backgroundColor: c.today },
+    cellActive: { backgroundColor: c.selectedFill },
     cellToday: { borderWidth: 1, borderColor: c.today },
     cellMuted: { opacity: 0.35 },
     cellText: { fontFamily: fonts.medium, fontSize: 12, color: c.ink },
-    cellTextActive: { color: c.white, fontFamily: fonts.semibold },
+    cellTextActive: { color: c.onSelected, fontFamily: fonts.semibold },
     selectedLabel: {
       fontFamily: fonts.body,
       fontSize: 12,

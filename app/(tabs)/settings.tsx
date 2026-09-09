@@ -77,7 +77,7 @@ export default function SettingsScreen() {
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: c.ink,
+      backgroundColor: c.selectedFill,
       alignItems: 'center' as const,
       justifyContent: 'center' as const,
     },
@@ -152,7 +152,7 @@ export default function SettingsScreen() {
       paddingHorizontal: 12,
       paddingVertical: 8,
     },
-    chipSelected: { backgroundColor: c.ink, borderColor: c.ink },
+    chipSelected: { backgroundColor: c.selectedFill, borderColor: c.selectedFill },
     otherChip: {
       borderStyle: 'dashed' as const,
       borderColor: c.energy,
@@ -164,8 +164,8 @@ export default function SettingsScreen() {
       borderColor: c.energy,
     },
     chipText: { fontFamily: fonts.medium, fontSize: 13, color: c.ink },
-    chipTextSelected: { color: c.white },
-    otherTextSelected: { color: c.white, fontFamily: fonts.semibold },
+    chipTextSelected: { color: c.onSelected },
+    otherTextSelected: { color: c.onSelected, fontFamily: fonts.semibold },
     customBox: { gap: 6 },
     customInput: {
       borderRadius: radii.md,
@@ -243,7 +243,7 @@ export default function SettingsScreen() {
 
       <Pressable onPress={() => router.push('/profile')} style={styles.profileLink}>
         <View style={styles.profileIcon}>
-          <Ionicons name="person-outline" size={18} color={colors.white} />
+          <Ionicons name="person-outline" size={18} color={colors.onSelected} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.profileName}>{user?.name || 'Your profile'}</Text>

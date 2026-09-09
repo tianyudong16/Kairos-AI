@@ -84,11 +84,11 @@ export default function LoginScreen() {
       backgroundColor: c.bg,
     },
     modeChipActive: {
-      backgroundColor: c.today,
-      borderColor: c.today,
+      backgroundColor: c.selectedFill,
+      borderColor: c.selectedFill,
     },
     modeText: { fontFamily: fonts.semibold, color: c.ink },
-    modeTextActive: { color: c.white },
+    modeTextActive: { color: c.onSelected },
     fieldLabel: {
       fontFamily: fonts.semibold,
       fontSize: 12,
